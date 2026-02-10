@@ -1,0 +1,16 @@
+.git
+.sst
+.venv
+web/
+node_modules/
+*.db
+__pycache__
+*.pyc
+.pytest_cache
+htmlcov/
+coverage-*.xml
+junit-*.xml
+dist/
+.eggs/
+*.egg-info/
+secrets/

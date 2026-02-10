@@ -1,12 +1,20 @@
 # Leashline production config — leashline.io
 # Runs on ECS Fargate. Storage: DynamoDB. Positions arrive via MQTT.
-# Copy and fill in secrets before deploying.
+#
+# Override chain (highest priority wins):
+#   1. This YAML (base config)
+#   2. secrets_path YAML file (gitignored, for local dev with prod config)
+#   3. Environment variables: DYNAMODB_TABLE, CLERK_SECRET_KEY, CLERK_JWT_KEY,
+#      MQTT_BROKER_HOST, MQTT_USERNAME, MQTT_PASSWORD (set by SST in ECS)
 
 host: "0.0.0.0"
 port: 8000
 
+# Set to "secrets/prod.yaml" for local testing with prod secrets
+secrets_path: null
+
 storage:
-  backend: "dynamodb"           # TODO: implement DynamoDB storage backend
+  backend: "dynamodb"
   dynamodb:
     table_prefix: "leashline"
     region: "us-east-1"
@@ -15,14 +23,12 @@ storage:
 meshtastic:
   connection_type: "mqtt"
 
-# MQTT broker — broker.leashline.io
-# The API subscribes to the wildcard topic and routes by pack_id.
-# Each pack's hub publishes to: leashline/{pack_id}/2/json/LongFast/!devicehex
+# MQTT broker — overridden by secrets file or MQTT_BROKER_HOST env var
 mqtt:
-  broker_host: ""               # FILL IN — e.g. broker.leashline.io or xyz.emqxsl.com
+  broker_host: ""
   broker_port: 8883
-  username: ""                  # FILL IN
-  password: ""                  # FILL IN
+  username: ""
+  password: ""
   topic: "leashline/+/2/json/#"
   tls_enabled: true
 
@@ -32,10 +38,10 @@ detection:
   scatter_threshold_m: 50.0
   max_history: 20
 
-# Auth — Clerk (https://dashboard.clerk.com)
+# Auth — Clerk keys overridden by secrets file or CLERK_SECRET_KEY env var
 auth:
   enabled: true
   dev_mode: false
   clerk:
-    secret_key: ""              # FILL IN — sk_live_...
-    jwt_key: ""                 # FILL IN — optional
+    secret_key: ""
+    jwt_key: ""

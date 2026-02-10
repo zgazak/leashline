@@ -216,3 +216,14 @@ web/.env.local
 *.db
 coverage-*.xml
 junit-*.xml
+
+# SST
+.sst/
+sst-env.d.ts
+
+# Secrets
+secrets/*.yaml
+!secrets/example.yaml
+
+# Root node_modules (SST infra)
+node_modules/

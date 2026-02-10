@@ -56,6 +56,7 @@ async def lifespan(app: FastAPI):
         _storage = await DynamoStorage.create(
             table_prefix=_config.storage.dynamodb.table_prefix,
             region=_config.storage.dynamodb.region,
+            endpoint_url=_config.storage.dynamodb.endpoint_url,
         )
     else:
         from app.storage.sqlite import SqliteStorage
