@@ -1,0 +1,24 @@
+host: "0.0.0.0"
+port: 8000
+db_path: "leashline.db"
+
+meshtastic:
+  connection_type: "auto"
+  serial_port: "/dev/ttyUSB0"
+  tcp_host: "localhost"
+  tcp_port: 4403
+  ble_address: null
+
+mqtt:
+  broker_host: "localhost"
+  broker_port: 1883
+  username: null
+  password: null
+  topic: "msh/+/2/json/#"
+  tls_enabled: false
+
+detection:
+  warning_buffer_m: 20.0
+  breach_confirm_s: 10.0
+  scatter_threshold_m: 50.0
+  max_history: 20
