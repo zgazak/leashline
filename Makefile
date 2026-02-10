@@ -7,7 +7,7 @@
 ###################
 
 run: ## Run the app locally
-	uv run python -m app.main
+	uv run uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000
 
 ###################
 # Dependencies    #
@@ -53,6 +53,19 @@ upload: ## Upload the package to PyPI
 publish: build upload ## Build and upload the package to PyPI
 
 ###################
+# Web Frontend   #
+###################
+
+web-install: ## Install web frontend dependencies
+	cd web && npm install
+
+web-dev: ## Start web frontend dev server
+	cd web && npm run dev
+
+web-build: ## Build web frontend for production
+	cd web && npm run build
+
+###################
 # Cleanup        #
 ###################
 
@@ -72,7 +85,7 @@ clean: ## Clean build artifacts, caches, logs, and virtual environment
 # Help           #
 ###################
 
-.PHONY: run deploy test test-coverage clean sync help build upload publish
+.PHONY: run deploy test test-coverage clean sync help build upload publish web-install web-dev web-build
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
