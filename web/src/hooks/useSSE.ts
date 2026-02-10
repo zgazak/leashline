@@ -8,12 +8,18 @@ export function useSSE(
   path: string,
   eventName: string,
   onMessage: (data: unknown) => void,
+  token?: string | null,
 ) {
   const cbRef = useRef(onMessage);
   cbRef.current = onMessage;
 
   useEffect(() => {
-    const es = new EventSource(`${API_URL}${path}`);
+    const url = new URL(`${API_URL}${path}`);
+    if (token) {
+      url.searchParams.set("token", token);
+    }
+
+    const es = new EventSource(url.toString());
 
     es.addEventListener(eventName, (e) => {
       try {
@@ -29,5 +35,5 @@ export function useSSE(
     };
 
     return () => es.close();
-  }, [path, eventName]);
+  }, [path, eventName, token]);
 }

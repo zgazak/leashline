@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { listDogs, listGeofences } from "@/lib/api";
-import type { DogProfile, Geofence } from "@/lib/types";
+import { useApi } from "@/lib/api-provider";
+import type { DogProfile, Geofence, Pack } from "@/lib/types";
 import { useAlerts } from "@/hooks/useAlerts";
 import { useConnection } from "@/hooks/useConnection";
 import { usePositions } from "@/hooks/usePositions";
@@ -11,25 +11,44 @@ import AlertList from "@/components/AlertList";
 import ConnectionStatus from "@/components/ConnectionStatus";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 import DogList from "@/components/DogList";
+import PackSetup from "@/components/PackSetup";
+import PackSettings from "@/components/PackSettings";
 import Sidebar from "@/components/Sidebar";
 
 // Load Map client-only (mapbox-gl needs window)
 const Map = dynamic(() => import("@/components/Map"), { ssr: false });
 
 export default function Home() {
+  const api = useApi();
+
   const [dogs, setDogs] = useState<DogProfile[]>([]);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
   const [showSwitcher, setShowSwitcher] = useState(false);
+  const [showPackSettings, setShowPackSettings] = useState(false);
   const [focusDogId, setFocusDogId] = useState<string | null>(null);
+  const [needsPack, setNeedsPack] = useState(false);
+  const [ready, setReady] = useState(false);
 
-  const positions = usePositions();
-  const alerts = useAlerts();
-  const connectionState = useConnection();
+  const positions = usePositions(api);
+  const alerts = useAlerts(api);
+  const connectionState = useConnection(api);
 
   useEffect(() => {
-    listDogs().then(setDogs).catch(() => {});
-    listGeofences().then(setGeofences).catch(() => {});
-  }, []);
+    // Try loading dogs — if 403, user needs a pack
+    api
+      .listDogs()
+      .then((d) => {
+        setDogs(d);
+        setReady(true);
+      })
+      .catch((e: Error) => {
+        if (e.message.startsWith("403")) {
+          setNeedsPack(true);
+        }
+        setReady(true);
+      });
+    api.listGeofences().then(setGeofences).catch(() => {});
+  }, [api]);
 
   // Build device_id → dog name lookup
   const dogNames = useMemo(() => {
@@ -62,11 +81,30 @@ export default function Home() {
     setFocusDogId(null);
   }, []);
 
+  const handlePackReady = useCallback(
+    (_pack: Pack) => {
+      setNeedsPack(false);
+      // Reload data
+      api.listDogs().then(setDogs).catch(() => {});
+      api.listGeofences().then(setGeofences).catch(() => {});
+    },
+    [api],
+  );
+
+  if (!ready) return null;
+
   return (
     <div className="flex h-screen">
       <Sidebar>
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <h1 className="text-lg font-bold text-gray-900">Leashline</h1>
+          <button
+            onClick={() => setShowPackSettings(true)}
+            className="text-gray-400 hover:text-gray-600 text-sm"
+            title="Pack settings"
+          >
+            &#9881;
+          </button>
         </div>
         <ConnectionStatus
           state={connectionState}
@@ -108,6 +146,12 @@ export default function Home() {
       {showSwitcher && (
         <ConnectionSwitcher onClose={() => setShowSwitcher(false)} />
       )}
+
+      {showPackSettings && (
+        <PackSettings api={api} onClose={() => setShowPackSettings(false)} />
+      )}
+
+      {needsPack && <PackSetup api={api} onPackReady={handlePackReady} />}
     </div>
   );
 }
