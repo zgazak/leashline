@@ -1,35 +1,37 @@
 # Leashline
 
-Leashline is a **local-first dog escape detection system** designed for areas with poor cellular coverage.
+Leashline is a **dog escape detection system** using LoRa/Meshtastic radio tracking with polygon geofencing. GPS collars transmit positions over LoRa to a base station hub, which relays data to the Leashline API via WiFi (at home) or BLE (on the go). The API runs escape detection, stores positions, and streams real-time alerts to a PWA frontend.
 
-It uses LoRa/Meshtastic radio tracking with polygon geofencing on a local base station. A GPS collar transmits positions over LoRa to a nearby receiver connected to your computer. Leashline ingests those packets, runs geofence and escape detection, and streams real-time alerts.
-
-No cloud. No subscription. No cellular required.
+Multi-user support via Clerk auth and "packs" (households) — each pack gets its own MQTT topic namespace, so multiple families can use the same deployment.
 
 **Status:** early alpha.
 
 ## How It Works
 
 ```
-GPS collar (LoRa) ──radio──> Base station ──serial/TCP/BLE──> Leashline server
-                                                                    │
-                                                        ┌───────────┼───────────┐
-                                                        ▼           ▼           ▼
-                                                    Geofence    Escape      SSE stream
-                                                     check     detection    to frontend
-                                                                               │
-                                                                          Web app (map,
-                                                                          alerts, tracking)
+Dog collar (LoRa GPS)
+    │ LoRa radio
+    ▼
+WiFi hub (at home)  ──WiFi──>  Cloud MQTT broker
+  or                              │
+BLE hub (on the go) ──phone──>    │
+                                  ▼
+                          Leashline API
+                    (subscribes to pack topics)
+                       │          │          │
+                   Geofence    Escape     SSE stream
+                    check     detection   to frontend
+                                              │
+                                     PWA (map, alerts,
+                                     tracking, pack mgmt)
 ```
 
 1. A Meshtastic GPS collar broadcasts position packets over LoRa
-2. A base station receiver picks them up (connected via USB serial, TCP, or BLE)
-3. Leashline's listener parses the packets into track points
+2. A base station hub receives them and publishes to MQTT (via WiFi or phone BLE bridge)
+3. The API subscribes to `leashline/{pack_id}/2/json/#` and parses track points
 4. The detection engine checks each point against polygon geofences
 5. Alerts fire on boundary approach, breach, confirmed escape, and return
 6. Positions and alerts stream to the web frontend via SSE
-
-**On-the-go workflow:** At home, the base station connects via USB. If your dog escapes, unplug the node, grab it, and switch to BLE from the web app on your phone — no Meshtastic app needed.
 
 ## Requirements
 
@@ -54,7 +56,7 @@ make test-app           # app tests
 make test-coverage      # both + coverage badges
 ```
 
-The server starts on `http://localhost:8000` by default.
+The server starts on `http://localhost:8000` by default. With `auth.enabled: false` (the default), everything works without Clerk — a synthetic dev user and `"local"` pack are used automatically.
 
 ### Web Frontend
 
@@ -70,7 +72,9 @@ cp web/.env.example web/.env.local
 make web-dev
 ```
 
-The web app runs on `http://localhost:3000`. It shows a live map with dog positions, geofence boundaries, alerts, and connection management. If no Mapbox token is set, the map area displays setup instructions.
+The web app runs on `http://localhost:3000`. It shows a live map with dog positions, geofence boundaries, alerts, and connection management.
+
+To enable Clerk auth, add `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` to `web/.env.local`, and set `auth.enabled: true` in `local.yaml`.
 
 ### Configuration
 
@@ -84,27 +88,34 @@ uv run python -m app.main --config resources/src/resources/config/local.yaml
 uv run python -m app.main --host 127.0.0.1 --port 9000
 ```
 
-Config is a YAML file with sections for the server, Meshtastic connection, and detection thresholds. See `resources/src/resources/config/local.yaml` for the full template.
+Config is a YAML file with sections for the server, Meshtastic connection, MQTT, detection thresholds, and auth. See `resources/src/resources/config/local.yaml` for the full template.
 
 ## API
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/` | Health check |
-| GET/POST/DELETE | `/dogs` | Dog profile CRUD |
-| GET/POST/DELETE | `/geofences` | Polygon geofence CRUD |
-| GET | `/positions/latest` | Latest position per device |
-| GET | `/positions/{device_id}` | Position history |
-| GET | `/alerts` | List alerts |
+| GET/POST/DELETE | `/dogs` | Dog profile CRUD (pack-scoped) |
+| GET/POST/DELETE | `/geofences` | Polygon geofence CRUD (pack-scoped) |
+| GET | `/positions/latest` | Latest position per device (pack-scoped) |
+| GET | `/positions/{device_id}` | Position history (pack-scoped) |
+| GET | `/alerts` | List alerts (pack-scoped) |
 | POST | `/alerts/{id}/acknowledge` | Acknowledge an alert |
-| GET | `/devices` | List known Meshtastic devices |
+| GET | `/devices` | List known devices (pack-scoped) |
 | POST | `/devices/{id}/assign` | Assign a device to a dog |
 | GET | `/connection/status` | Current connection state |
-| POST | `/connection/switch` | Switch connection type (serial/TCP/BLE) |
-| GET | `/connection/scan` | Scan for nearby BLE Meshtastic devices |
-| GET | `/stream/positions` | SSE stream of real-time positions |
-| GET | `/stream/alerts` | SSE stream of real-time alerts |
-| GET | `/stream/connection` | SSE stream of connection state changes |
+| POST | `/connection/switch` | Switch connection type |
+| GET | `/connection/scan` | Scan for nearby BLE devices |
+| POST | `/packs` | Create a pack (household) |
+| GET | `/packs/me` | Get current user's pack + members |
+| POST | `/packs/invite` | Generate invite code |
+| POST | `/packs/join` | Join pack with invite code |
+| DELETE | `/packs/members/{user_id}` | Remove member (owner only) |
+| GET | `/stream/positions?token=` | SSE positions (pack-filtered) |
+| GET | `/stream/alerts?token=` | SSE alerts (pack-filtered) |
+| GET | `/stream/connection?token=` | SSE connection state |
+
+All pack-scoped endpoints require auth (when enabled). SSE endpoints use `?token=` query param since EventSource can't send headers.
 
 ## Project Structure
 
@@ -117,38 +128,61 @@ leashline/
 │       └── detection/       # Motion, scatter, sampling, escape detection
 ├── app/                     # FastAPI server
 │   └── src/app/
-│       ├── api/             # REST + SSE endpoints (incl. connection mgmt)
+│       ├── api/             # REST + SSE endpoints (pack-scoped)
+│       ├── auth/            # Clerk JWT deps (get_current_user, get_pack_id)
+│       ├── models/          # App-layer models (Pack, PackMember, PackInvite)
 │       ├── core/            # Config, async event bus
-│       ├── storage/         # SQLite via aiosqlite
-│       ├── listener/        # Meshtastic listener + connection manager
-│       └── processor.py     # Detection pipeline
-├── web/                     # Next.js frontend (map, alerts, connection UI)
+│       ├── storage/         # SQLite with TenantRepository (pack_id isolation)
+│       ├── listener/        # Meshtastic + MQTT listeners, connection manager
+│       └── processor.py     # Detection pipeline (envelope-aware)
+├── web/                     # Next.js frontend (PWA)
 │   └── src/
-│       ├── app/             # App Router pages
-│       ├── components/      # Map, sidebar, alerts, connection switcher
-│       ├── hooks/           # SSE subscription hooks
-│       └── lib/             # API client, TypeScript types
+│       ├── app/             # App Router pages (incl. sign-in/sign-up)
+│       ├── components/      # Map, sidebar, alerts, PackSetup, PackSettings
+│       ├── hooks/           # Auth-aware SSE subscription hooks
+│       └── lib/             # API client, types, auth provider
 ├── resources/               # YAML config files
 └── leashline/               # PyPI package stub
 ```
 
-The engine is intentionally pure — no I/O, no database, no network. It takes positions in and returns verdicts out. This makes it easy to test and reason about independently from the app layer.
+The engine is intentionally pure — no I/O, no database, no network. It takes positions in and returns verdicts out. Pack/tenant isolation lives entirely in the app layer.
 
 ## Hardware
 
-You need two things: a GPS collar tracker and a base station receiver.
+### Two-hub setup
 
-| Component | Role | Example | Approx Cost |
-|-----------|------|---------|-------------|
-| GPS collar | Transmits position over LoRa | [Spec5 Trace](https://specfive.com/products/specfive-trace-gps-tracker-for-dogs-teams) | ~$130 |
-| Base station | Receives packets, connects to your computer via USB | [RAK WisMesh Pocket](https://store.rakwireless.com/products/wisblock-meshtastic-starter-kit) or any Meshtastic node | ~$40 |
-| Outdoor antenna | Improves range (antenna height matters most) | Any 915 MHz omni + SMA coax | ~$60–100 |
+| Component | Role | Hardware | Connectivity |
+|-----------|------|----------|-------------|
+| **Dog collar** | GPS + LoRa transmitter | [Spec5 Trace](https://specfive.com/products/specfive-trace-gps-tracker-for-dogs-teams) (~$130) | LoRa only |
+| **WiFi hub** (home) | Always-on base station | Heltec WiFi LoRa 32 V4 (~$20) | LoRa + WiFi → MQTT |
+| **BLE hub** (mobile) | Portable for walks/chasing | RAK WisMesh Pocket (~$40) or any Meshtastic node | LoRa + BLE → phone → MQTT |
+| **Outdoor antenna** | Improves range | Any 915 MHz omni + SMA coax (~$60–100) | — |
 
-All devices must be on the same Meshtastic frequency (US915 for North America). The collar only transmits; all intelligence runs on your computer.
+All LoRa devices must be on the same Meshtastic frequency (US915 for North America).
 
-The base station connects to Leashline via USB serial (at home) or BLE (on the go). You can switch connection types live from the web app — no restart needed.
+### WiFi hub setup (Heltec WiFi LoRa 32 V4)
 
-This is not a consumer product. It's a local radio system built from commodity hardware.
+The WiFi hub stays at home, connects to your WiFi, and publishes received LoRa positions directly to an MQTT broker — no phone required. Dogs can be home alone and still be tracked.
+
+1. Flash [Meshtastic firmware](https://meshtastic.org/docs/getting-started/flashing-firmware/) onto the Heltec V4
+2. Configure WiFi: set `network.wifi_ssid` and `network.wifi_psk` via Meshtastic CLI or app
+3. Configure MQTT on the device:
+   - `mqtt.enabled: true`
+   - `mqtt.address`: your MQTT broker hostname
+   - `mqtt.username` / `mqtt.password`: broker credentials
+   - `mqtt.root`: set to your pack's MQTT topic prefix (shown in Pack Settings in the web app, e.g. `leashline/a1b2c3d4e5f6`)
+4. Set device role to `ROUTER` or `CLIENT_MUTE` (relays packets without cluttering the mesh)
+5. Plug in and leave it — it auto-reconnects to WiFi and MQTT
+
+### BLE hub setup (mobile)
+
+For walks or chasing an escaped dog. Your phone runs the Meshtastic app, connects to the BLE hub, and bridges packets to the same MQTT broker.
+
+1. Pair the BLE device with the Meshtastic app on your phone
+2. In the Meshtastic app, configure MQTT with the same broker and topic prefix
+3. The app bridges LoRa → BLE → phone → internet → MQTT
+
+Both hubs publish to the same MQTT topic namespace, so the Leashline API sees all positions regardless of which hub received them.
 
 ## Safety
 
