@@ -18,6 +18,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def extract_pack_id(topic: str) -> str | None:
+    """Extract pack_id from topic like 'leashline/{pack_id}/2/json/...'
+
+    Returns None for non-leashline topics (e.g. msh/+/2/json/#).
+    """
+    parts = topic.split("/")
+    if len(parts) >= 2 and parts[0] == "leashline":
+        return parts[1]
+    return None
+
+
 class MqttListener:
     """Subscribes to Meshtastic MQTT topics and publishes TrackPoints to the EventBus.
 
@@ -102,8 +113,17 @@ class MqttListener:
 
         if track_point:
             logger.debug("MQTT: received position from %s", track_point.device_id)
+
+            # Extract pack_id from topic for per-pack routing
+            pack_id = extract_pack_id(topic)
+            if pack_id:
+                envelope = {"pack_id": pack_id, "data": track_point}
+            else:
+                # Non-leashline topic (legacy msh/ format) → local pack
+                envelope = {"pack_id": "local", "data": track_point}
+
             asyncio.run_coroutine_threadsafe(
-                self._event_bus.publish("positions", track_point),
+                self._event_bus.publish("positions", envelope),
                 self._loop,
             )
 

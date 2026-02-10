@@ -1,6 +1,13 @@
+# Leashline local config — for running on your own machine.
+# No cloud, no auth, no MQTT broker needed. Just plug in your Meshtastic device.
+
 host: "0.0.0.0"
 port: 8000
-db_path: "leashline.db"
+
+storage:
+  backend: "sqlite"
+  sqlite:
+    path: "leashline.db"
 
 meshtastic:
   connection_type: "auto"
@@ -22,3 +29,6 @@ detection:
   breach_confirm_s: 10.0
   scatter_threshold_m: 50.0
   max_history: 20
+
+auth:
+  enabled: false

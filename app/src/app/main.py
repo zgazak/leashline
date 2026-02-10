@@ -46,11 +46,20 @@ async def lifespan(app: FastAPI):
     global _storage, _event_bus, _config, _connection_manager
 
     from app.listener.connection_manager import ConnectionManager
-    from app.storage.sqlite import SqliteStorage
 
     _config = app.state.config
     _event_bus = EventBus()
-    _storage = await SqliteStorage.create(_config.db_path)
+
+    # Initialize storage backend
+    if _config.storage.backend == "dynamodb":
+        from app.storage.dynamodb import DynamoStorage
+        _storage = await DynamoStorage.create(
+            table_prefix=_config.storage.dynamodb.table_prefix,
+            region=_config.storage.dynamodb.region,
+        )
+    else:
+        from app.storage.sqlite import SqliteStorage
+        _storage = await SqliteStorage.create(_config.effective_db_path)
 
     # Start detection processor
     from app.processor import run_detection_processor
@@ -116,13 +125,18 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://localhost:3001"],
+        allow_origins=[
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "https://leashline.io",
+            "https://www.leashline.io",
+        ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    from app.api import alerts, connection, devices, dogs, geofences, positions, root, stream
+    from app.api import alerts, connection, devices, dogs, geofences, packs, positions, root, stream
 
     app.include_router(root.router)
     app.include_router(dogs.router)
@@ -132,6 +146,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.include_router(devices.router)
     app.include_router(stream.router)
     app.include_router(connection.router)
+    app.include_router(packs.router)
 
     return app
 

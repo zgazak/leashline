@@ -29,17 +29,25 @@ async def run_detection_processor(
 
     try:
         while True:
-            track_point = await queue.get()
+            message = await queue.get()
+
+            # Support envelope format {"pack_id": ..., "data": TrackPoint}
+            if isinstance(message, dict) and "pack_id" in message:
+                pack_id = message["pack_id"]
+                track_point = message["data"]
+            else:
+                pack_id = "local"
+                track_point = message
 
             # Store position
             pos_id = uuid.uuid4().hex[:12]
-            await storage.positions.put(pos_id, track_point)
+            await storage.positions.put(pos_id, track_point, pack_id)
 
-            # Publish position to SSE subscribers
-            await event_bus.publish("positions_sse", track_point)
+            # Publish position to SSE subscribers (with envelope)
+            await event_bus.publish("positions_sse", {"pack_id": pack_id, "data": track_point})
 
-            # Look up dog by device_id
-            dogs = await storage.dogs.list_all()
+            # Look up dog by device_id within this pack
+            dogs = await storage.dogs.list_for_pack(pack_id)
             dog = next((d for d in dogs if d.device_id == track_point.device_id), None)
 
             if dog is None:
@@ -52,14 +60,14 @@ async def run_detection_processor(
 
             # Check against all active geofences for this dog
             for gf_id in dog.geofence_ids:
-                geofence = await storage.geofences.get(gf_id)
+                geofence = await storage.geofences.get_for_pack(gf_id, pack_id)
                 if geofence is None or not geofence.enabled:
                     continue
 
                 alert = detector.evaluate(enriched, geofence)
                 if alert:
-                    await storage.alerts.put(alert.id, alert)
-                    await event_bus.publish("alerts", alert)
+                    await storage.alerts.put(alert.id, alert, pack_id)
+                    await event_bus.publish("alerts", {"pack_id": pack_id, "data": alert})
                     logger.info("Alert: %s", alert.message)
     except asyncio.CancelledError:
         logger.info("Detection processor stopped")

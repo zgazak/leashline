@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.auth.deps import get_current_user
+from app.auth.models import UserInfo
 from app.listener.connection_state import BLEScanResult, ConnectionState
 
 router = APIRouter(prefix="/connection", tags=["connection"])
@@ -27,7 +29,9 @@ class SwitchRequest(BaseModel):
 
 
 @router.get("/status")
-async def connection_status() -> ConnectionState:
+async def connection_status(
+    user: UserInfo = Depends(get_current_user),
+) -> ConnectionState:
     from app.main import get_connection_manager
 
     mgr = get_connection_manager()
@@ -35,7 +39,10 @@ async def connection_status() -> ConnectionState:
 
 
 @router.post("/switch")
-async def connection_switch(req: SwitchRequest) -> ConnectionState:
+async def connection_switch(
+    req: SwitchRequest,
+    user: UserInfo = Depends(get_current_user),
+) -> ConnectionState:
     from app.main import get_connection_manager
 
     mgr = get_connection_manager()
@@ -63,7 +70,9 @@ async def connection_switch(req: SwitchRequest) -> ConnectionState:
 
 
 @router.get("/scan")
-async def connection_scan() -> list[BLEScanResult]:
+async def connection_scan(
+    user: UserInfo = Depends(get_current_user),
+) -> list[BLEScanResult]:
     from app.main import get_connection_manager
 
     mgr = get_connection_manager()
