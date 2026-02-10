@@ -1,0 +1,41 @@
+# Leashline production config — leashline.io
+# Runs on ECS Fargate. Storage: DynamoDB. Positions arrive via MQTT.
+# Copy and fill in secrets before deploying.
+
+host: "0.0.0.0"
+port: 8000
+
+storage:
+  backend: "dynamodb"           # TODO: implement DynamoDB storage backend
+  dynamodb:
+    table_prefix: "leashline"
+    region: "us-east-1"
+
+# Meshtastic — in cloud mode, all data arrives via MQTT (no direct device connection)
+meshtastic:
+  connection_type: "mqtt"
+
+# MQTT broker — broker.leashline.io
+# The API subscribes to the wildcard topic and routes by pack_id.
+# Each pack's hub publishes to: leashline/{pack_id}/2/json/LongFast/!devicehex
+mqtt:
+  broker_host: ""               # FILL IN — e.g. broker.leashline.io or xyz.emqxsl.com
+  broker_port: 8883
+  username: ""                  # FILL IN
+  password: ""                  # FILL IN
+  topic: "leashline/+/2/json/#"
+  tls_enabled: true
+
+detection:
+  warning_buffer_m: 20.0
+  breach_confirm_s: 10.0
+  scatter_threshold_m: 50.0
+  max_history: 20
+
+# Auth — Clerk (https://dashboard.clerk.com)
+auth:
+  enabled: true
+  dev_mode: false
+  clerk:
+    secret_key: ""              # FILL IN — sk_live_...
+    jwt_key: ""                 # FILL IN — optional
