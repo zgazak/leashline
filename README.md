@@ -1,5 +1,36 @@
 # Leashline
 
+![Engine Tests](.github/badges/tests-engine.svg) ![Engine Coverage](.github/badges/coverage-engine.svg) ![App Tests](.github/badges/tests-app.svg) ![App Coverage](.github/badges/coverage-app.svg)
+
+## Meet Rufio
+
+<img src="docs/rufio.jpg" alt="Rufio rolling in the grass, living his best life" width="320" align="right" />
+
+This is **Rufio**, our adopted (ex-)hunting dog. We built Leashline for him.
+
+Rufio has a big heart, and can pass through any fenceline on the planet with ease. He is anxious and driven to escape regarding:
+
+- Thunderstorms
+- Fireworks
+- Gunshots
+- Other loud sounds
+- Quiet electronic sounds (yes, really)
+- The sight of suitcases
+- Separation
+- Vibes (unspecified)
+
+And sometimes, he escapes for the joy of it.
+
+We live in a low-signal cellular area, so when Rufio escapes, commercial GPS trackers (Fi, Whistle, Halo) can take **hours** to deliver a location update. By then he's three counties over making friends.
+
+Leashline uses **LoRa radio** instead of cellular — long range, no towers needed, real-time positions even in the middle of nowhere. If Rufio crosses a geofence boundary, we know in seconds, not hours.
+
+If you have a dog like Rufio and like to tinker, we'd love to have you join our quest for better pet tracking!
+
+<br clear="right" />
+
+---
+
 Leashline is a **dog escape detection system** using LoRa/Meshtastic radio tracking with polygon geofencing. GPS collars transmit positions over LoRa to a base station hub, which relays data to the Leashline API via WiFi (at home) or BLE (on the go). The API runs escape detection, stores positions, and streams real-time alerts to a PWA frontend.
 
 Multi-user support via Clerk auth and "packs" (households) — each pack gets its own MQTT topic namespace, so multiple families can use the same deployment.
@@ -39,56 +70,22 @@ BLE hub (on the go) ──phone──>    │
 - [uv](https://docs.astral.sh/uv/) package manager
 - Node.js >= 18 (for the web frontend)
 
-## Getting Started
+## Quick Start
 
 ```bash
-# Clone and sync dependencies
 git clone https://github.com/zgazak/leashline.git
 cd leashline
-make sync
+make sync           # install Python dependencies
+make run            # API on http://localhost:8000 (no auth by default)
 
-# Run the server
-make run
-
-# Run tests
-make test-engine        # engine unit tests (geo, detection)
-make test-app           # app tests
-make test-coverage      # both + coverage badges
-```
-
-The server starts on `http://localhost:8000` by default. With `auth.enabled: false` (the default), everything works without Clerk — a synthetic dev user and `"local"` pack are used automatically.
-
-### Web Frontend
-
-```bash
-# Install frontend dependencies
-make web-install
-
-# Set up your Mapbox token (free at mapbox.com)
+# Frontend
 cp web/.env.example web/.env.local
-# Edit web/.env.local and add your NEXT_PUBLIC_MAPBOX_TOKEN
-
-# Start the dev server
-make web-dev
+# Edit web/.env.local — add your NEXT_PUBLIC_MAPBOX_TOKEN (free at mapbox.com)
+make web-install
+make web-dev        # http://localhost:3000
 ```
 
-The web app runs on `http://localhost:3000`. It shows a live map with dog positions, geofence boundaries, alerts, and connection management.
-
-To enable Clerk auth, add `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` to `web/.env.local`, and set `auth.enabled: true` in `local.yaml`.
-
-### Configuration
-
-Copy and edit the default config, or run with defaults:
-
-```bash
-# Run with a custom config
-uv run python -m app.main --config resources/src/resources/config/local.yaml
-
-# Override host/port
-uv run python -m app.main --host 127.0.0.1 --port 9000
-```
-
-Config is a YAML file with sections for the server, Meshtastic connection, MQTT, detection thresholds, and auth. See `resources/src/resources/config/local.yaml` for the full template.
+For full setup instructions — local MQTT broker, cloud MQTT (EMQX Serverless), AWS deployment with SST, Clerk auth, and Meshtastic hub configuration — see **[SETUP.md](SETUP.md)**.
 
 ## API
 
@@ -162,27 +159,36 @@ All LoRa devices must be on the same Meshtastic frequency (US915 for North Ameri
 
 ### WiFi hub setup (Heltec WiFi LoRa 32 V4)
 
-The WiFi hub stays at home, connects to your WiFi, and publishes received LoRa positions directly to an MQTT broker — no phone required. Dogs can be home alone and still be tracked.
+The WiFi hub stays at home, connects to your WiFi, and publishes received LoRa positions directly to an MQTT broker — no phone required. Dogs can be home alone and still be tracked. **MQTT Client Proxy: OFF** (device connects directly).
 
 1. Flash [Meshtastic firmware](https://meshtastic.org/docs/getting-started/flashing-firmware/) onto the Heltec V4
 2. Configure WiFi: set `network.wifi_ssid` and `network.wifi_psk` via Meshtastic CLI or app
-3. Configure MQTT on the device:
+3. Configure MQTT on the device (proxy OFF — device connects directly):
    - `mqtt.enabled: true`
+   - `mqtt.proxy_to_client_enabled: false`
    - `mqtt.address`: your MQTT broker hostname
    - `mqtt.username` / `mqtt.password`: broker credentials
-   - `mqtt.root`: set to your pack's MQTT topic prefix (shown in Pack Settings in the web app, e.g. `leashline/a1b2c3d4e5f6`)
+   - `mqtt.tls_enabled: true` (for cloud brokers on port 8883)
+   - `mqtt.root`: your pack's MQTT topic prefix (shown in Pack Settings, e.g. `leashline/a1b2c3d4e5f6`)
+   - `mqtt.json_enabled: true`
 4. Set device role to `ROUTER` or `CLIENT_MUTE` (relays packets without cluttering the mesh)
 5. Plug in and leave it — it auto-reconnects to WiFi and MQTT
 
 ### BLE hub setup (mobile)
 
-For walks or chasing an escaped dog. Your phone runs the Meshtastic app, connects to the BLE hub, and bridges packets to the same MQTT broker.
+For walks or chasing an escaped dog. Your phone runs the Meshtastic app, connects to the BLE hub, and bridges packets to the same MQTT broker. **MQTT Client Proxy: ON** (phone proxies the connection).
 
 1. Pair the BLE device with the Meshtastic app on your phone
-2. In the Meshtastic app, configure MQTT with the same broker and topic prefix
-3. The app bridges LoRa → BLE → phone → internet → MQTT
+2. On the device, enable MQTT with proxy ON: `mqtt.enabled: true`, `mqtt.proxy_to_client_enabled: true`, `mqtt.json_enabled: true`
+3. **Configure MQTT in the Meshtastic phone app** (Settings → MQTT) — not on the device, since the phone handles the actual broker connection:
+   - Server address, username, password, TLS, and root topic (same values as the WiFi hub)
+4. The app bridges LoRa → BLE → phone → internet → MQTT
+
+> When proxy is ON, the device routes MQTT through your phone's internet over BLE. The broker address and credentials must be set in the phone app, not on the device.
 
 Both hubs publish to the same MQTT topic namespace, so the Leashline API sees all positions regardless of which hub received them.
+
+For detailed step-by-step commands, see [SETUP.md](SETUP.md#2e-configure-meshtastic-hubs).
 
 ## Safety
 

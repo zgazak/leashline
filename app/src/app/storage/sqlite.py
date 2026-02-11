@@ -51,12 +51,18 @@ CREATE TABLE IF NOT EXISTS pack_invites (
     code TEXT PRIMARY KEY,
     data TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id TEXT PRIMARY KEY,
+    pack_id TEXT NOT NULL DEFAULT 'local',
+    data TEXT NOT NULL
+);
 
 CREATE INDEX IF NOT EXISTS idx_dogs_pack ON dogs(pack_id);
 CREATE INDEX IF NOT EXISTS idx_devices_pack ON devices(pack_id);
 CREATE INDEX IF NOT EXISTS idx_geofences_pack ON geofences(pack_id);
 CREATE INDEX IF NOT EXISTS idx_positions_pack ON positions(pack_id);
 CREATE INDEX IF NOT EXISTS idx_alerts_pack ON alerts(pack_id);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_pack ON push_subscriptions(pack_id);
 CREATE INDEX IF NOT EXISTS idx_pack_members_user ON pack_members(user_id);
 """
 
@@ -237,11 +243,14 @@ class SqliteStorage:
         from engine.models.geofence import Geofence
         from engine.models.position import TrackPoint
 
+        from app.notifications.models import PushSubscription
+
         self.dogs = TenantRepository(db, "dogs", DogProfile)
         self.devices = TenantRepository(db, "devices", CollarDevice)
         self.geofences = TenantRepository(db, "geofences", Geofence)
         self.positions = TenantRepository(db, "positions", TrackPoint)
         self.alerts = TenantRepository(db, "alerts", Alert)
+        self.push_subscriptions = TenantRepository(db, "push_subscriptions", PushSubscription)
         self.packs = PackRepository(db)
         self._db = db
 

@@ -14,6 +14,7 @@ import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 import CreateGeofenceModal from "@/components/CreateGeofenceModal";
 import DogList from "@/components/DogList";
 import GeofenceList from "@/components/GeofenceList";
+import NotificationToggle from "@/components/NotificationToggle";
 import PackSetup from "@/components/PackSetup";
 import PackSettings from "@/components/PackSettings";
 import Sidebar from "@/components/Sidebar";
@@ -208,6 +209,7 @@ export default function Home() {
           state={connectionState}
           onSwitch={() => setShowSwitcher(true)}
         />
+        <NotificationToggle api={api} />
         <DogList
           dogs={dogs}
           positions={positions}

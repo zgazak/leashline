@@ -49,6 +49,7 @@ async def lifespan(app: FastAPI):
 
     _config = app.state.config
     _event_bus = EventBus()
+    notification_task = None
 
     # Initialize storage backend
     if _config.storage.backend == "dynamodb":
@@ -74,6 +75,21 @@ async def lifespan(app: FastAPI):
     )
     processor_task = asyncio.create_task(run_detection_processor(_event_bus, _storage, det_cfg))
 
+    # Start push notification dispatcher (if enabled)
+    if _config.notifications.enabled and _config.notifications.vapid.private_key:
+        from app.notifications.channels import WebPushChannel
+        from app.notifications.dispatcher import run_notification_dispatcher
+        from app.notifications.service import NotificationService
+
+        vapid_claims = {"sub": _config.notifications.vapid.mailto}
+        web_push = WebPushChannel(_config.notifications.vapid.private_key, vapid_claims)
+        notif_service = NotificationService([web_push])
+        notification_task = asyncio.create_task(
+            run_notification_dispatcher(_event_bus, _storage, notif_service)
+        )
+    else:
+        logger.info("Push notifications disabled (notifications.enabled=%s)", _config.notifications.enabled)
+
     # Connection manager
     loop = asyncio.get_running_loop()
     _connection_manager = ConnectionManager(_event_bus, loop)
@@ -88,6 +104,7 @@ async def lifespan(app: FastAPI):
                 mqtt_password=_config.mqtt.password,
                 mqtt_topic=_config.mqtt.topic,
                 mqtt_tls=_config.mqtt.tls_enabled,
+                mqtt_ca_certs=_config.mqtt.ca_certs,
             )
         else:
             _connection_manager.connect(
@@ -110,6 +127,13 @@ async def lifespan(app: FastAPI):
         await processor_task
     except asyncio.CancelledError:
         pass
+
+    if notification_task is not None:
+        notification_task.cancel()
+        try:
+            await notification_task
+        except asyncio.CancelledError:
+            pass
 
     _connection_manager.disconnect()
     await _storage.close()
@@ -137,7 +161,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    from app.api import alerts, connection, devices, dogs, geofences, packs, positions, root, stream
+    from app.api import alerts, connection, devices, dogs, geofences, notifications, packs, positions, root, stream
 
     app.include_router(root.router)
     app.include_router(dogs.router)
@@ -148,6 +172,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.include_router(stream.router)
     app.include_router(connection.router)
     app.include_router(packs.router)
+    app.include_router(notifications.router)
 
     return app
 
@@ -165,6 +190,17 @@ def main(config_path: Path | None, host: str | None, port: int | None):
         config = config.model_copy(update={"host": host})
     if port:
         config = config.model_copy(update={"port": port})
+
+    # Log resolved config (mask secrets)
+    mqtt = config.mqtt
+    logger.info("Config: secrets_path=%s", config.secrets_path)
+    logger.info("Config: storage.backend=%s", config.storage.backend)
+    logger.info("Config: auth.enabled=%s", config.auth.enabled)
+    logger.info("Config: mqtt.broker_host=%s port=%d tls=%s topic=%s",
+                mqtt.broker_host or "(empty)", mqtt.broker_port, mqtt.tls_enabled, mqtt.topic)
+    logger.info("Config: mqtt.username=%s password=%s",
+                mqtt.username or "(empty)",
+                ("***" + mqtt.password[-4:] if mqtt.password and len(mqtt.password) > 4 else "(empty)"))
 
     app = create_app(config)
     uvicorn.run(app, host=config.host, port=config.port)

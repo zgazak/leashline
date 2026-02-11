@@ -99,6 +99,20 @@ export function createAuthApi(getToken: () => Promise<string | null>) {
       }),
     removeMember: (userId: string) =>
       fetchJSON<void>(`/packs/members/${userId}`, { method: "DELETE" }),
+    getVapidKey: () =>
+      fetchJSON<{ public_key: string }>("/notifications/vapid-key"),
+    subscribePush: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+      fetchJSON<unknown>("/notifications/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription),
+      }),
+    unsubscribePush: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+      fetchJSON<void>("/notifications/subscribe", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription),
+      }),
     getToken,
   };
 }

@@ -17,6 +17,7 @@ dependencies = [
     "paho-mqtt>=2.0",
     "clerk-backend-api>=1.0.0",
     "aioboto3>=13.0.0",
+    "pywebpush>=2.0.0",
 ]
 
 [build-system]

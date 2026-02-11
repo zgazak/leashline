@@ -15,8 +15,9 @@ COPY leashline/ leashline/
 # Install the app package (resolves workspace deps)
 RUN uv pip install ./engine ./resources ./app --system
 
-# Copy config files
+# Copy config files and certs
 COPY resources/src/resources/config/ /app/config/
+COPY resources/certs/ /app/certs/
 
 EXPOSE 8000
 

@@ -225,5 +225,10 @@ sst-env.d.ts
 secrets/*.yaml
 !secrets/example.yaml
 
+# TLS certificates (user downloads themselves)
+*.crt
+*.pem
+resources/certs/
+
 # Root node_modules (SST infra)
 node_modules/

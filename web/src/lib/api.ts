@@ -72,6 +72,20 @@ function createApi(fetchFn: FetchFn = fetch) {
         body: JSON.stringify(req),
       }),
     scanBLE: () => fetchJSON<BLEScanResult[]>("/connection/scan"),
+    getVapidKey: () =>
+      fetchJSON<{ public_key: string }>("/notifications/vapid-key"),
+    subscribePush: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+      fetchJSON<unknown>("/notifications/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription),
+      }),
+    unsubscribePush: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+      fetchJSON<void>("/notifications/subscribe", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription),
+      }),
   };
 }
 
@@ -94,5 +108,8 @@ export const acknowledgeAlert = defaultApi.acknowledgeAlert;
 export const getConnectionStatus = defaultApi.getConnectionStatus;
 export const switchConnection = defaultApi.switchConnection;
 export const scanBLE = defaultApi.scanBLE;
+export const getVapidKey = defaultApi.getVapidKey;
+export const subscribePush = defaultApi.subscribePush;
+export const unsubscribePush = defaultApi.unsubscribePush;
 
 export { createApi };

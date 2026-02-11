@@ -50,6 +50,7 @@ class ConnectionManager:
         mqtt_password: str | None = None,
         mqtt_topic: str = "msh/+/2/json/#",
         mqtt_tls: bool = False,
+        mqtt_ca_certs: str | None = None,
     ) -> None:
         """Create a new connection and start (or restart) the listener.
 
@@ -72,6 +73,7 @@ class ConnectionManager:
                 password=mqtt_password,
                 topic=mqtt_topic,
                 tls_enabled=mqtt_tls,
+                ca_certs=mqtt_ca_certs,
             )
             self._listener.start()
             return

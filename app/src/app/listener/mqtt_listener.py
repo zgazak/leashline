@@ -47,6 +47,7 @@ class MqttListener:
         password: str | None = None,
         topic: str = "msh/+/2/json/#",
         tls_enabled: bool = False,
+        ca_certs: str | None = None,
     ) -> None:
         self._event_bus = event_bus
         self._loop = loop
@@ -56,6 +57,7 @@ class MqttListener:
         self._password = password
         self._topic = topic
         self._tls_enabled = tls_enabled
+        self._ca_certs = ca_certs
         self._running = False
         self._state = ConnectionState(status=ConnectionStatus.disconnected, connection_type="mqtt")
         self._client: mqtt.Client | None = None
@@ -137,7 +139,7 @@ class MqttListener:
             self._client.username_pw_set(self._username, self._password)
 
         if self._tls_enabled:
-            self._client.tls_set()
+            self._client.tls_set(ca_certs=self._ca_certs)
 
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect

@@ -22,6 +22,7 @@ class MqttConfig(BaseModel):
     password: str | None = Field(default=None, description="MQTT password")
     topic: str = Field(default="msh/+/2/json/#", description="MQTT topic filter")
     tls_enabled: bool = Field(default=False, description="Enable TLS for MQTT connection")
+    ca_certs: str | None = Field(default=None, description="Path to CA cert file for TLS")
 
 
 class DetectionSettings(BaseModel):
@@ -59,6 +60,17 @@ class StorageConfig(BaseModel):
     dynamodb: DynamoStorageConfig = Field(default_factory=DynamoStorageConfig)
 
 
+class VapidConfig(BaseModel):
+    public_key: str = Field(default="", description="VAPID public key (base64url)")
+    private_key: str = Field(default="", description="VAPID private key (base64url)")
+    mailto: str = Field(default="mailto:admin@leashline.io", description="VAPID contact email")
+
+
+class NotificationConfig(BaseModel):
+    enabled: bool = Field(default=False, description="Enable push notifications")
+    vapid: VapidConfig = Field(default_factory=VapidConfig)
+
+
 class SecretsConfig(BaseModel):
     """Flat secrets loaded from a gitignored YAML file."""
     clerk_secret_key: str | None = None
@@ -66,6 +78,8 @@ class SecretsConfig(BaseModel):
     mqtt_broker_host: str | None = None
     mqtt_username: str | None = None
     mqtt_password: str | None = None
+    vapid_public_key: str | None = None
+    vapid_private_key: str | None = None
 
 
 class AppConfig(BaseModel):
@@ -77,6 +91,7 @@ class AppConfig(BaseModel):
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
     detection: DetectionSettings = Field(default_factory=DetectionSettings)
     auth: AuthConfig = Field(default_factory=AuthConfig)
+    notifications: NotificationConfig = Field(default_factory=NotificationConfig)
     secrets_path: str | None = Field(default=None, description="Path to secrets YAML file")
 
     @property
@@ -115,6 +130,7 @@ def _apply_overrides(config: AppConfig) -> AppConfig:
     auth_updates: dict = {}
     clerk_updates: dict = {}
     dynamo_updates: dict = {}
+    vapid_updates: dict = {}
 
     # Secrets file values (middle priority)
     if secrets.mqtt_broker_host:
@@ -127,6 +143,10 @@ def _apply_overrides(config: AppConfig) -> AppConfig:
         clerk_updates["secret_key"] = secrets.clerk_secret_key
     if secrets.clerk_jwt_key:
         clerk_updates["jwt_key"] = secrets.clerk_jwt_key
+    if secrets.vapid_public_key:
+        vapid_updates["public_key"] = secrets.vapid_public_key
+    if secrets.vapid_private_key:
+        vapid_updates["private_key"] = secrets.vapid_private_key
 
     # Env var overrides (highest priority)
     if os.environ.get("DYNAMODB_TABLE"):
@@ -141,6 +161,10 @@ def _apply_overrides(config: AppConfig) -> AppConfig:
         clerk_updates["secret_key"] = os.environ["CLERK_SECRET_KEY"]
     if os.environ.get("CLERK_JWT_KEY"):
         clerk_updates["jwt_key"] = os.environ["CLERK_JWT_KEY"]
+    if os.environ.get("VAPID_PUBLIC_KEY"):
+        vapid_updates["public_key"] = os.environ["VAPID_PUBLIC_KEY"]
+    if os.environ.get("VAPID_PRIVATE_KEY"):
+        vapid_updates["private_key"] = os.environ["VAPID_PRIVATE_KEY"]
 
     # Build updated config
     if mqtt_updates:
@@ -152,6 +176,9 @@ def _apply_overrides(config: AppConfig) -> AppConfig:
     if dynamo_updates:
         storage_dynamo = config.storage.dynamodb.model_copy(update=dynamo_updates)
         updates["storage"] = config.storage.model_copy(update={"dynamodb": storage_dynamo})
+    if vapid_updates:
+        notif_vapid = config.notifications.vapid.model_copy(update=vapid_updates)
+        updates["notifications"] = config.notifications.model_copy(update={"vapid": notif_vapid})
 
     if updates:
         return config.model_copy(update=updates)
