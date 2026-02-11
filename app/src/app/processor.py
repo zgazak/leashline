@@ -63,6 +63,8 @@ async def run_detection_processor(
                 geofence = await storage.geofences.get_for_pack(gf_id, pack_id)
                 if geofence is None or not geofence.enabled:
                     continue
+                if geofence.zone_type == "label":
+                    continue
 
                 alert = detector.evaluate(enriched, geofence)
                 if alert:

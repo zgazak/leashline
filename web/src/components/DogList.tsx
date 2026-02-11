@@ -1,15 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { deleteDog } from "@/lib/api";
-import type { DogProfile, TrackPoint } from "@/lib/types";
+import type { DogProfile, Geofence, TrackPoint } from "@/lib/types";
 import AddDogModal from "@/components/AddDogModal";
+import DogGeofenceAssign from "@/components/DogGeofenceAssign";
 
 interface DogListProps {
   dogs: DogProfile[];
   positions: Record<string, TrackPoint>;
+  geofences: Geofence[];
+  dogZones: Record<string, string>;
   onDogAdded: (dog: DogProfile) => void;
   onDogDeleted: (id: string) => void;
+  onDogUpdated: (dog: DogProfile) => void;
 }
 
 function timeAgo(iso: string): string {
@@ -25,10 +29,20 @@ function timeAgo(iso: string): string {
 export default function DogList({
   dogs,
   positions,
+  geofences,
+  dogZones,
   onDogAdded,
   onDogDeleted,
+  onDogUpdated,
 }: DogListProps) {
   const [showModal, setShowModal] = useState(false);
+  const [assignDogId, setAssignDogId] = useState<string | null>(null);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const handleDelete = async (id: string) => {
     try {
@@ -63,13 +77,27 @@ export default function DogList({
             return (
               <li
                 key={dog.id}
-                className="flex items-center justify-between text-sm group"
+                className="flex items-center justify-between text-sm group relative"
               >
-                <span className="font-medium text-gray-800">{dog.name}</span>
+                <span className="min-w-0">
+                  <span className="font-medium text-gray-800 block">{dog.name}</span>
+                  {dogZones[dog.id] && (
+                    <span className="text-xs text-gray-400 block truncate">at {dogZones[dog.id]}</span>
+                  )}
+                </span>
                 <span className="flex items-center gap-2">
                   <span className="text-gray-400 text-xs">
                     {tp ? timeAgo(tp.received_at) : "no signal"}
                   </span>
+                  <button
+                    onClick={() =>
+                      setAssignDogId(assignDogId === dog.id ? null : dog.id)
+                    }
+                    className="text-gray-300 hover:text-blue-500 text-xs leading-none opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Assign geofences"
+                  >
+                    &#9638;
+                  </button>
                   <button
                     onClick={() => handleDelete(dog.id)}
                     className="text-gray-300 hover:text-red-500 text-xs leading-none opacity-0 group-hover:opacity-100 transition-opacity"
@@ -78,6 +106,14 @@ export default function DogList({
                     &times;
                   </button>
                 </span>
+                {assignDogId === dog.id && (
+                  <DogGeofenceAssign
+                    dog={dog}
+                    geofences={geofences}
+                    onClose={() => setAssignDogId(null)}
+                    onDogUpdated={onDogUpdated}
+                  />
+                )}
               </li>
             );
           })}

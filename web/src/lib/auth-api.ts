@@ -2,6 +2,7 @@ import type {
   Alert,
   BLEScanResult,
   ConnectionState,
+  Coordinate,
   DogProfile,
   Geofence,
   Pack,
@@ -42,6 +43,26 @@ export function createAuthApi(getToken: () => Promise<string | null>) {
     deleteDog: (id: string) =>
       fetchJSON<void>(`/dogs/${id}`, { method: "DELETE" }),
     listGeofences: () => fetchJSON<Geofence[]>("/geofences"),
+    createGeofence: (req: { name: string; vertices: Coordinate[]; buffer_meters?: number; zone_type?: "safe" | "label" }) =>
+      fetchJSON<Geofence>("/geofences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      }),
+    updateGeofence: (id: string, req: { name?: string; vertices?: Coordinate[]; buffer_meters?: number; enabled?: boolean; zone_type?: "safe" | "label" }) =>
+      fetchJSON<Geofence>(`/geofences/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      }),
+    deleteGeofence: (id: string) =>
+      fetchJSON<void>(`/geofences/${id}`, { method: "DELETE" }),
+    updateDog: (id: string, req: { name?: string; device_id?: string; geofence_ids?: string[]; notes?: string }) =>
+      fetchJSON<DogProfile>(`/dogs/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      }),
     getLatestPositions: () =>
       fetchJSON<Record<string, TrackPoint>>("/positions/latest"),
     getDevicePositions: (deviceId: string) =>

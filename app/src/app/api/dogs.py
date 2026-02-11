@@ -75,6 +75,25 @@ async def get_dog(
     return dog
 
 
+@router.put("/{dog_id}")
+async def update_dog(
+    dog_id: str,
+    req: UpdateDogRequest,
+    user: UserInfo = Depends(get_current_user),
+    pack_id: str = Depends(get_pack_id),
+) -> DogProfile:
+    from app.main import get_storage
+
+    storage = get_storage()
+    existing = await storage.dogs.get_for_pack(dog_id, pack_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Dog not found")
+    updates = req.model_dump(exclude_none=True)
+    updated = existing.model_copy(update=updates)
+    await storage.dogs.put(dog_id, updated, pack_id)
+    return updated
+
+
 @router.delete("/{dog_id}", status_code=204)
 async def delete_dog(
     dog_id: str,

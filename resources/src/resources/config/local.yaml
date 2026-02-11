@@ -10,7 +10,7 @@ storage:
     path: "leashline.db"
 
 meshtastic:
-  connection_type: "auto"
+  connection_type: "mqtt"
   serial_port: "/dev/ttyUSB0"
   tcp_host: "localhost"
   tcp_port: 4403

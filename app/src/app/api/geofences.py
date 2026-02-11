@@ -1,6 +1,7 @@
 """Geofence CRUD endpoints."""
 
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -16,6 +17,7 @@ class CreateGeofenceRequest(BaseModel):
     name: str
     vertices: list[Coordinate]
     buffer_meters: float = 0.0
+    zone_type: Literal["safe", "label"] = "safe"
 
 
 class UpdateGeofenceRequest(BaseModel):
@@ -23,6 +25,7 @@ class UpdateGeofenceRequest(BaseModel):
     vertices: list[Coordinate] | None = None
     buffer_meters: float | None = None
     enabled: bool | None = None
+    zone_type: Literal["safe", "label"] | None = None
 
 
 @router.get("")
@@ -50,6 +53,7 @@ async def create_geofence(
         name=req.name,
         vertices=req.vertices,
         buffer_meters=req.buffer_meters,
+        zone_type=req.zone_type,
     )
     await storage.geofences.put(fence.id, fence, pack_id)
     return fence
@@ -68,6 +72,25 @@ async def get_geofence(
     if fence is None:
         raise HTTPException(status_code=404, detail="Geofence not found")
     return fence
+
+
+@router.put("/{geofence_id}")
+async def update_geofence(
+    geofence_id: str,
+    req: UpdateGeofenceRequest,
+    user: UserInfo = Depends(get_current_user),
+    pack_id: str = Depends(get_pack_id),
+) -> Geofence:
+    from app.main import get_storage
+
+    storage = get_storage()
+    existing = await storage.geofences.get_for_pack(geofence_id, pack_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Geofence not found")
+    updates = req.model_dump(exclude_none=True)
+    updated = existing.model_copy(update=updates)
+    await storage.geofences.put(geofence_id, updated, pack_id)
+    return updated
 
 
 @router.delete("/{geofence_id}", status_code=204)

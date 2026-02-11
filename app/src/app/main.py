@@ -171,4 +171,6 @@ def main(config_path: Path | None, host: str | None, port: int | None):
 
 
 if __name__ == "__main__":
+    import sys
+    sys.modules["app.main"] = sys.modules[__name__]
     main()

@@ -2,6 +2,7 @@ import type {
   Alert,
   BLEScanResult,
   ConnectionState,
+  Coordinate,
   DogProfile,
   Geofence,
   SwitchRequest,
@@ -35,6 +36,26 @@ function createApi(fetchFn: FetchFn = fetch) {
     deleteDog: (id: string) =>
       fetchJSON<void>(`/dogs/${id}`, { method: "DELETE" }),
     listGeofences: () => fetchJSON<Geofence[]>("/geofences"),
+    createGeofence: (req: { name: string; vertices: Coordinate[]; buffer_meters?: number; zone_type?: "safe" | "label" }) =>
+      fetchJSON<Geofence>("/geofences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      }),
+    updateGeofence: (id: string, req: { name?: string; vertices?: Coordinate[]; buffer_meters?: number; enabled?: boolean; zone_type?: "safe" | "label" }) =>
+      fetchJSON<Geofence>(`/geofences/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      }),
+    deleteGeofence: (id: string) =>
+      fetchJSON<void>(`/geofences/${id}`, { method: "DELETE" }),
+    updateDog: (id: string, req: { name?: string; device_id?: string; geofence_ids?: string[]; notes?: string }) =>
+      fetchJSON<DogProfile>(`/dogs/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      }),
     getLatestPositions: () =>
       fetchJSON<Record<string, TrackPoint>>("/positions/latest"),
     getDevicePositions: (deviceId: string) =>
@@ -62,6 +83,10 @@ export const getDog = defaultApi.getDog;
 export const createDog = defaultApi.createDog;
 export const deleteDog = defaultApi.deleteDog;
 export const listGeofences = defaultApi.listGeofences;
+export const createGeofence = defaultApi.createGeofence;
+export const updateGeofence = defaultApi.updateGeofence;
+export const deleteGeofence = defaultApi.deleteGeofence;
+export const updateDog = defaultApi.updateDog;
 export const getLatestPositions = defaultApi.getLatestPositions;
 export const getDevicePositions = defaultApi.getDevicePositions;
 export const listAlerts = defaultApi.listAlerts;

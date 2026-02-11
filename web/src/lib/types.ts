@@ -27,8 +27,9 @@ export interface Geofence {
   id: string;
   name: string;
   vertices: Coordinate[];
-  buffer_m: number;
+  buffer_meters: number;
   enabled: boolean;
+  zone_type: "safe" | "label";
 }
 
 export interface DogProfile {

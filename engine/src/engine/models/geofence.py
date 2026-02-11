@@ -1,5 +1,7 @@
 """Geofence models."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -18,6 +20,7 @@ class Geofence(BaseModel, frozen=True):
     vertices: list[Coordinate] = Field(description="Ordered polygon vertices (closed automatically)")
     buffer_meters: float = Field(default=0.0, description="Warning buffer distance outside the fence")
     enabled: bool = Field(default=True)
+    zone_type: Literal["safe", "label"] = Field(default="safe", description="safe = alerts on breach; label = passive location only")
 
 
 class BoundaryProximity(BaseModel, frozen=True):
