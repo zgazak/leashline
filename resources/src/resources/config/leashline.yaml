@@ -1,0 +1,54 @@
+# Leashline production config — leashline.io
+# Runs on ECS Fargate. Storage: DynamoDB. Positions arrive via MQTT.
+#
+# Override chain (highest priority wins):
+#   1. This YAML (base config)
+#   2. secrets_path YAML file (gitignored, for local dev with prod config)
+#   3. Environment variables: DYNAMODB_TABLE, CLERK_SECRET_KEY, CLERK_JWT_KEY,
+#      MQTT_BROKER_HOST, MQTT_USERNAME, MQTT_PASSWORD (set by SST in ECS)
+
+host: "0.0.0.0"
+port: 8000
+
+# Set to "secrets/prod.yaml" for local testing with prod secrets
+secrets_path: null
+
+storage:
+  backend: "dynamodb"
+  dynamodb:
+    table_prefix: "leashline"
+    region: "us-east-1"
+
+# Meshtastic — in cloud mode, all data arrives via MQTT (no direct device connection)
+meshtastic:
+  connection_type: "mqtt"
+
+# MQTT broker — overridden by secrets file or MQTT_BROKER_HOST env var
+mqtt:
+  broker_host: ""
+  broker_port: 8883
+  username: ""
+  password: ""
+  topic: "leashline/+/2/json/#"
+  tls_enabled: true
+  ca_certs: "/app/certs/emqxsl-ca.crt"
+
+detection:
+  warning_buffer_m: 20.0
+  breach_confirm_s: 10.0
+  scatter_threshold_m: 50.0
+  max_history: 20
+
+# Auth — Clerk keys overridden by secrets file or CLERK_SECRET_KEY env var
+auth:
+  enabled: true
+  dev_mode: false
+  clerk:
+    secret_key: ""
+    jwt_key: ""
+
+# Push notifications — VAPID keys overridden by secrets file or VAPID_* env vars
+notifications:
+  enabled: true
+  vapid:
+    mailto: "mailto:admin@leashline.io"

@@ -1,0 +1,76 @@
+"""Detection processor — background async task that bridges positions to escape detection."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import uuid
+from typing import TYPE_CHECKING
+
+from engine.detection.escape import DetectionConfig, EscapeDetector
+
+if TYPE_CHECKING:
+    from app.core.events import EventBus
+    from app.storage.sqlite import SqliteStorage
+
+logger = logging.getLogger(__name__)
+
+
+async def run_detection_processor(
+    event_bus: EventBus,
+    storage: SqliteStorage,
+    detection_config: DetectionConfig | None = None,
+) -> None:
+    """Read positions from the event bus, run escape detection, store results, publish alerts."""
+    detector = EscapeDetector(detection_config)
+    queue = event_bus.subscribe("positions")
+
+    logger.info("Detection processor started")
+
+    try:
+        while True:
+            message = await queue.get()
+
+            # Support envelope format {"pack_id": ..., "data": TrackPoint}
+            if isinstance(message, dict) and "pack_id" in message:
+                pack_id = message["pack_id"]
+                track_point = message["data"]
+            else:
+                pack_id = "local"
+                track_point = message
+
+            # Store position
+            pos_id = uuid.uuid4().hex[:12]
+            await storage.positions.put(pos_id, track_point, pack_id)
+
+            # Publish position to SSE subscribers (with envelope)
+            await event_bus.publish("positions_sse", {"pack_id": pack_id, "data": track_point})
+
+            # Look up dog by device_id within this pack
+            dogs = await storage.dogs.list_for_pack(pack_id)
+            dog = next((d for d in dogs if d.device_id == track_point.device_id), None)
+
+            if dog is None:
+                continue
+
+            # Enrich track point with dog_id
+            from engine.models.position import TrackPoint
+
+            enriched = TrackPoint(**{**track_point.model_dump(), "dog_id": dog.id})
+
+            # Check against all active geofences for this dog
+            for gf_id in dog.geofence_ids:
+                geofence = await storage.geofences.get_for_pack(gf_id, pack_id)
+                if geofence is None or not geofence.enabled:
+                    continue
+                if geofence.zone_type == "label":
+                    continue
+
+                alert = detector.evaluate(enriched, geofence)
+                if alert:
+                    await storage.alerts.put(alert.id, alert, pack_id)
+                    await event_bus.publish("alerts", {"pack_id": pack_id, "data": alert})
+                    logger.info("Alert: %s", alert.message)
+    except asyncio.CancelledError:
+        logger.info("Detection processor stopped")
+        event_bus.unsubscribe("positions", queue)

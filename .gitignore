@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -205,3 +205,30 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Next.js / web frontend
+web/node_modules/
+web/.next/
+web/out/
+web/.env.local
+
+# Build / test artifacts
+*.db
+coverage-*.xml
+junit-*.xml
+
+# SST
+.sst/
+sst-env.d.ts
+
+# Secrets
+secrets/*.yaml
+!secrets/example.yaml
+
+# TLS certificates (user downloads themselves)
+*.crt
+*.pem
+resources/certs/
+
+# Root node_modules (SST infra)
+node_modules/

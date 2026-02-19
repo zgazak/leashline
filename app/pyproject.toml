@@ -1,0 +1,32 @@
+[project]
+name = "app"
+version = "0.1.0"
+description = "Leashline FastAPI server — Meshtastic listener, APIs, alerts"
+requires-python = ">=3.11"
+dependencies = [
+    "engine",
+    "resources",
+    "fastapi[standard]>=0.115.0",
+    "uvicorn>=0.32.0",
+    "meshtastic>=2.3.0",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "click>=8.1",
+    "aiosqlite>=0.20.0",
+    "sse-starlette>=2.0.0",
+    "paho-mqtt>=2.0",
+    "clerk-backend-api>=1.0.0",
+    "aioboto3>=13.0.0",
+    "pywebpush>=2.0.0",
+]
+
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+engine = { workspace = true }
+resources = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/app"]

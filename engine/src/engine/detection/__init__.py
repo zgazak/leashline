@@ -1,0 +1,1 @@
+"""Escape detection algorithms."""
