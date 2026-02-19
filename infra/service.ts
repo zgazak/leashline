@@ -4,6 +4,8 @@ import {
   MqttBrokerHost,
   MqttUsername,
   MqttPassword,
+  VapidPublicKey,
+  VapidPrivateKey,
 } from "./secrets";
 import { DOMAIN } from "./config";
 import { table } from "./dynamo";
@@ -30,6 +32,8 @@ export const service = new sst.aws.Service("Service", {
     MQTT_BROKER_HOST: MqttBrokerHost.value,
     MQTT_USERNAME: MqttUsername.value,
     MQTT_PASSWORD: MqttPassword.value,
+    VAPID_PUBLIC_KEY: VapidPublicKey.value,
+    VAPID_PRIVATE_KEY: VapidPrivateKey.value,
   },
   permissions: [
     {

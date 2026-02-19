@@ -87,6 +87,8 @@ KEY_MAP = {
     'mqtt_username':         'MqttUsername',
     'mqtt_password':         'MqttPassword',
     'mapbox_token':          'MapboxToken',
+    'vapid_public_key':      'VapidPublicKey',
+    'vapid_private_key':     'VapidPrivateKey',
 }
 
 secrets_file, stage = sys.argv[1], sys.argv[2]

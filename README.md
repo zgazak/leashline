@@ -157,6 +157,16 @@ The engine is intentionally pure — no I/O, no database, no network. It takes p
 
 All LoRa devices must be on the same Meshtastic frequency (US915 for North America).
 
+### Dog collar setup (Spec5 Trace or similar)
+
+The collar just broadcasts GPS positions over LoRa — no WiFi, no MQTT, no internet. The base station handles the relay to MQTT.
+
+1. Flash [Meshtastic firmware](https://meshtastic.org/docs/getting-started/flashing-firmware/) (Spec5 Trace ships with it pre-installed)
+2. Set the LoRa region: `meshtastic --set lora.region US`
+3. **Enable MQTT publishing**: `meshtastic --set lora.config_ok_to_mqtt true` — without this, the base station will hear the collar but won't publish its packets to MQTT
+4. Set full position precision on the channel: `meshtastic --ch-set module_settings.position_precision 32 --ch-index 0` — the default (13) truncates GPS to ~400m blocks
+5. That's it — unplug and go. The collar broadcasts every 30 seconds when it has a GPS fix
+
 ### WiFi hub setup (Heltec WiFi LoRa 32 V4)
 
 The WiFi hub stays at home, connects to your WiFi, and publishes received LoRa positions directly to an MQTT broker — no phone required. Dogs can be home alone and still be tracked. **MQTT Client Proxy: OFF** (device connects directly).
@@ -166,13 +176,16 @@ The WiFi hub stays at home, connects to your WiFi, and publishes received LoRa p
 3. Configure MQTT on the device (proxy OFF — device connects directly):
    - `mqtt.enabled: true`
    - `mqtt.proxy_to_client_enabled: false`
-   - `mqtt.address`: your MQTT broker hostname
+   - `mqtt.address`: your MQTT broker hostname with port, e.g. `broker.example.com:8883` (Meshtastic defaults to 1883 without the port suffix, which won't work for TLS brokers)
    - `mqtt.username` / `mqtt.password`: broker credentials
    - `mqtt.tls_enabled: true` (for cloud brokers on port 8883)
    - `mqtt.root`: your pack's MQTT topic prefix (shown in Pack Settings, e.g. `leashline/a1b2c3d4e5f6`)
    - `mqtt.json_enabled: true`
-4. Set device role to `ROUTER` or `CLIENT_MUTE` (relays packets without cluttering the mesh)
-5. Plug in and leave it — it auto-reconnects to WiFi and MQTT
+4. **Enable channel uplink**: `meshtastic --ch-set uplink_enabled true --ch-index 0` — this tells the hub to publish received LoRa packets to MQTT. Without it, the hub connects to the broker but never sends anything
+5. Set device role to `ROUTER` or `CLIENT_MUTE` (relays packets without cluttering the mesh)
+6. Plug in and leave it — it auto-reconnects to WiFi and MQTT
+
+> **Important:** The `uplink_enabled` setting can get reset by other config changes. If positions stop appearing in MQTT, check this first.
 
 ### BLE hub setup (mobile)
 
@@ -187,6 +200,14 @@ For walks or chasing an escaped dog. Your phone runs the Meshtastic app, connect
 > When proxy is ON, the device routes MQTT through your phone's internet over BLE. The broker address and credentials must be set in the phone app, not on the device.
 
 Both hubs publish to the same MQTT topic namespace, so the Leashline API sees all positions regardless of which hub received them.
+
+### Private channel (recommended)
+
+By default, all Meshtastic devices on the same frequency share the default encryption key — anyone on the mesh can read your dog's position. To keep locations private:
+
+1. Generate a random AES256 key: `python3 -c "import secrets, base64; print('base64:' + base64.b64encode(secrets.token_bytes(32)).decode())"`
+2. Set it on **both** the collar and hub: `meshtastic --ch-set psk "base64:YOUR_KEY_HERE" --ch-index 0`
+3. Other mesh nodes still relay your encrypted packets (extending range) but can't read the position data
 
 For detailed step-by-step commands, see [SETUP.md](SETUP.md#2e-configure-meshtastic-hubs).
 

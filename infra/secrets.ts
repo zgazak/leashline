@@ -5,3 +5,5 @@ export const MqttUsername = new sst.Secret("MqttUsername");
 export const MqttPassword = new sst.Secret("MqttPassword");
 export const ClerkPublishableKey = new sst.Secret("ClerkPublishableKey");
 export const MapboxToken = new sst.Secret("MapboxToken");
+export const VapidPublicKey = new sst.Secret("VapidPublicKey");
+export const VapidPrivateKey = new sst.Secret("VapidPrivateKey");

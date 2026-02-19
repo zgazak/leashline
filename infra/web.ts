@@ -1,4 +1,4 @@
-import { ClerkPublishableKey, ClerkSecretKey, MapboxToken } from "./secrets";
+import { ClerkPublishableKey, ClerkSecretKey, MapboxToken, VapidPublicKey } from "./secrets";
 import { DOMAIN } from "./config";
 import { service } from "./service";
 
@@ -21,5 +21,6 @@ export const web = new sst.aws.Nextjs("Web", {
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ClerkPublishableKey.value,
     CLERK_SECRET_KEY: ClerkSecretKey.value,
     NEXT_PUBLIC_MAPBOX_TOKEN: MapboxToken.value,
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY: VapidPublicKey.value,
   },
 });
