@@ -225,10 +225,9 @@ sst-env.d.ts
 secrets/*.yaml
 !secrets/example.yaml
 
-# TLS certificates (user downloads themselves)
-*.crt
+# TLS certificates (private keys only — CA certs are public and safe to commit)
 *.pem
-resources/certs/
+resources/certs/*.key
 
 # Root node_modules (SST infra)
 node_modules/
