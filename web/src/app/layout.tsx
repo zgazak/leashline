@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Providers from "./providers";
 
 export const metadata: Metadata = {
-  title: "Leashline",
-  description: "Dog escape detection & tracking",
+  title: {
+    default: "Leashline | Dog Escape Detection",
+    template: "%s | Leashline",
+  },
+  description:
+    "Real-time dog escape detection using LoRa radio tracking and smart geofencing. Get instant alerts when your dog leaves their safe zone — no cell coverage needed.",
 };
 
 export default function RootLayout({
@@ -18,8 +21,8 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#2563eb" />
       </head>
-      <body className="h-screen overflow-hidden">
-        <Providers>{children}</Providers>
+      <body>
+        {children}
         <script
           dangerouslySetInnerHTML={{
             __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}`,

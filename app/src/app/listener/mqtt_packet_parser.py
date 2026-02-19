@@ -49,10 +49,14 @@ def parse_mqtt_json_packet(payload: bytes, topic: str = "") -> TrackPoint | None
     lat = lat_i / 1e7
     lon = lon_i / 1e7
 
-    # Sender ID from the message
-    sender = data.get("sender", "unknown")
-    if isinstance(sender, int):
-        sender = f"!{sender:08x}"
+    # Device ID: use "from" (originating node) over "sender" (relay node)
+    from_id = data.get("from")
+    if from_id is not None:
+        sender = f"!{from_id:08x}" if isinstance(from_id, int) else str(from_id)
+    else:
+        sender = data.get("sender", "unknown")
+        if isinstance(sender, int):
+            sender = f"!{sender:08x}"
 
     # GPS timestamp
     gps_time = payload_data.get("time")

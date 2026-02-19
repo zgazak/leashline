@@ -22,7 +22,7 @@ import Sidebar from "@/components/Sidebar";
 // Load Map client-only (mapbox-gl needs window)
 const Map = dynamic(() => import("@/components/Map"), { ssr: false });
 
-export default function Home() {
+export default function DashboardPage() {
   const api = useApi();
 
   const [dogs, setDogs] = useState<DogProfile[]>([]);

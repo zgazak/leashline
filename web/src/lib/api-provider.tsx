@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useMemo } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { createAuthApi } from "./auth-api";
 import type { Api } from "./auth-api";
 
@@ -15,9 +16,6 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function ClerkApiProvider({ children }: { children: React.ReactNode }) {
-  // Dynamic require — only reached when ClerkProvider is in the tree
-  const mod = require("@clerk/nextjs") as typeof import("@clerk/nextjs");
-  const { useAuth } = mod;
   const { getToken } = useAuth();
   const api = useMemo(() => createAuthApi(() => getToken()), [getToken]);
   return <ApiContext.Provider value={api}>{children}</ApiContext.Provider>;
