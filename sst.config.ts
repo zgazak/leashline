@@ -12,5 +12,6 @@ export default $config({
     await import("./infra/secrets");
     await import("./infra/dynamo");
     await import("./infra/service");
+    await import("./infra/web");
   },
 });

@@ -5,6 +5,7 @@ import {
   MqttUsername,
   MqttPassword,
 } from "./secrets";
+import { DOMAIN } from "./config";
 import { table } from "./dynamo";
 
 const vpc = new sst.aws.Vpc("Vpc");
@@ -48,8 +49,10 @@ export const service = new sst.aws.Service("Service", {
   },
   loadBalancer: {
     ports: [{ listen: "443/https", forward: "8000/http" }],
-    ...(($app.stage === "production"
-      ? { domain: "api.leashline.io" }
-      : {}) as {}),
+    ...(DOMAIN && $app.stage === "production"
+      ? { domain: `api.${DOMAIN}` }
+      : DOMAIN && $app.stage === "dev"
+        ? { domain: `api.dev.${DOMAIN}` }
+        : {}),
   },
 });

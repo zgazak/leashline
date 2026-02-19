@@ -31,6 +31,7 @@ mqtt:
   password: ""
   topic: "leashline/+/2/json/#"
   tls_enabled: true
+  ca_certs: "/app/certs/emqxsl-ca.crt"
 
 detection:
   warning_buffer_m: 20.0
@@ -45,3 +46,9 @@ auth:
   clerk:
     secret_key: ""
     jwt_key: ""
+
+# Push notifications — VAPID keys overridden by secrets file or VAPID_* env vars
+notifications:
+  enabled: true
+  vapid:
+    mailto: "mailto:admin@leashline.io"

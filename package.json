@@ -5,7 +5,11 @@
     "sst:deploy:dev": "npx sst deploy --stage dev",
     "sst:deploy:prod": "npx sst deploy --stage production",
     "sst:remove:dev": "npx sst remove --stage dev",
-    "sst:remove:prod": "npx sst remove --stage production"
+    "sst:remove:prod": "npx sst remove --stage production",
+    "secrets:list:dev": "./scripts/secrets.sh list dev",
+    "secrets:list:prod": "./scripts/secrets.sh list production",
+    "secrets:sync:dev": "./scripts/secrets.sh sync dev",
+    "secrets:sync:prod": "./scripts/secrets.sh sync production"
   },
   "devDependencies": {
     "sst": "^3"

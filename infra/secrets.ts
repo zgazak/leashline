@@ -3,3 +3,5 @@ export const ClerkJwtKey = new sst.Secret("ClerkJwtKey");
 export const MqttBrokerHost = new sst.Secret("MqttBrokerHost");
 export const MqttUsername = new sst.Secret("MqttUsername");
 export const MqttPassword = new sst.Secret("MqttPassword");
+export const ClerkPublishableKey = new sst.Secret("ClerkPublishableKey");
+export const MapboxToken = new sst.Secret("MapboxToken");

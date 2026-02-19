@@ -155,6 +155,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             "http://localhost:3001",
             "https://leashline.io",
             "https://www.leashline.io",
+            "https://dev.leashline.io",
         ],
         allow_credentials=True,
         allow_methods=["*"],
