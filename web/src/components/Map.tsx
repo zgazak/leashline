@@ -18,6 +18,8 @@ interface MapProps {
   onPolygonComplete?: (vertices: Coordinate[]) => void;
   onPolygonUpdated?: (geofenceId: string, vertices: Coordinate[]) => void;
   onDrawCancel?: () => void;
+  onMapInteraction?: () => void;
+  bottomPadding?: number;
 }
 
 function coordsFromFeature(feature: GeoJSON.Feature<GeoJSON.Polygon>): Coordinate[] {
@@ -36,6 +38,8 @@ export default function Map({
   onPolygonComplete,
   onPolygonUpdated,
   onDrawCancel,
+  onMapInteraction,
+  bottomPadding,
 }: MapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -49,6 +53,8 @@ export default function Map({
   onPolygonCompleteRef.current = onPolygonComplete;
   const onPolygonUpdatedRef = useRef(onPolygonUpdated);
   onPolygonUpdatedRef.current = onPolygonUpdated;
+  const onMapInteractionRef = useRef(onMapInteraction);
+  onMapInteractionRef.current = onMapInteraction;
 
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -74,6 +80,10 @@ export default function Map({
     );
 
     mapRef.current = map;
+
+    // Collapse bottom sheet on map interaction
+    map.on("dragstart", () => onMapInteractionRef.current?.());
+    map.on("click", () => onMapInteractionRef.current?.());
 
     return () => {
       map.remove();
@@ -331,9 +341,16 @@ export default function Map({
     }
   }, [focusDogId, positions]);
 
+  // Adjust map padding for bottom sheet
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.setPadding({ top: 0, left: 0, right: 0, bottom: bottomPadding ?? 0 });
+  }, [bottomPadding]);
+
   if (!token) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-100 text-gray-500">
+      <div className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-500">
         <div className="text-center p-8">
           <p className="text-lg font-semibold mb-2">Mapbox token not set</p>
           <p className="text-sm">
@@ -351,5 +368,5 @@ export default function Map({
     );
   }
 
-  return <div ref={containerRef} className="flex-1 w-full h-full" />;
+  return <div ref={containerRef} className="absolute inset-0" />;
 }

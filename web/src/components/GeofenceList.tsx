@@ -77,14 +77,14 @@ export default function GeofenceList({
               </button>
               <button
                 onClick={() => onEditGeofence(gf.id)}
-                className="text-gray-300 hover:text-blue-500 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                className="text-gray-300 hover:text-blue-500 text-xs sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                 title="Edit vertices"
               >
                 &#9998;
               </button>
               <button
                 onClick={() => onDeleteGeofence(gf.id)}
-                className="text-gray-300 hover:text-red-500 text-xs leading-none opacity-0 group-hover:opacity-100 transition-opacity"
+                className="text-gray-300 hover:text-red-500 text-xs leading-none sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                 title="Delete"
               >
                 &times;
