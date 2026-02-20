@@ -7,6 +7,7 @@ const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
 export function PWAUpdateManager() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
+  const updateDetectedRef = useRef(false);
 
   const applyUpdate = useCallback(() => {
     const waiting = registrationRef.current?.waiting;
@@ -18,15 +19,16 @@ export function PWAUpdateManager() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
-    // Listen for SW_ACTIVATED message → reload
+    // Listen for SW_ACTIVATED message → reload (only if we detected an update)
     const onMessage = (event: MessageEvent) => {
-      if (event.data?.type === "SW_ACTIVATED") {
+      if (event.data?.type === "SW_ACTIVATED" && updateDetectedRef.current) {
         window.location.reload();
       }
     };
     navigator.serviceWorker.addEventListener("message", onMessage);
 
     const trackWaitingWorker = (worker: ServiceWorker) => {
+      updateDetectedRef.current = true;
       worker.addEventListener("statechange", () => {
         if (worker.state === "activated") {
           window.location.reload();

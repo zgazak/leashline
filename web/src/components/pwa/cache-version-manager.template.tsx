@@ -18,22 +18,22 @@ export function CacheVersionManager({ children }: { children: React.ReactNode })
 
     const isUpgrade = stored !== null;
 
-    // Clear all client-side storage
-    localStorage.clear();
-    sessionStorage.clear();
+    if (isUpgrade) {
+      // Clear all client-side storage on version change
+      localStorage.clear();
+      sessionStorage.clear();
 
-    // Clear Cache Storage API
-    if ("caches" in window) {
-      caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
-    }
+      if ("caches" in window) {
+        caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
+      }
 
-    // Clear IndexedDB
-    if ("indexedDB" in window) {
-      indexedDB.databases?.().then((dbs) =>
-        dbs.forEach((db) => {
-          if (db.name) indexedDB.deleteDatabase(db.name);
-        })
-      );
+      if ("indexedDB" in window) {
+        indexedDB.databases?.().then((dbs) =>
+          dbs.forEach((db) => {
+            if (db.name) indexedDB.deleteDatabase(db.name);
+          })
+        );
+      }
     }
 
     // Set new version
