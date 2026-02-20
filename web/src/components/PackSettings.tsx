@@ -76,13 +76,6 @@ export default function PackSettings({ api, onClose }: PackSettingsProps) {
               <p className="font-medium">{pack.name}</p>
             </div>
 
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-sm text-gray-500 mb-1">MQTT Topic Prefix</p>
-              <code className="text-sm font-mono text-blue-700 break-all">
-                {pack.mqtt_topic_prefix}/2/json/LongFast
-              </code>
-            </div>
-
             <div>
               <p className="text-sm text-gray-500 mb-2">
                 Members ({members.length})

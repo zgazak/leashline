@@ -254,6 +254,15 @@ class SqliteStorage:
         self.packs = PackRepository(db)
         self._db = db
 
+    async def find_pack_by_device_id(self, device_id: str) -> str | None:
+        """Look up which pack owns a device by searching dog profiles across all packs."""
+        cursor = await self._db.execute(
+            "SELECT pack_id FROM dogs WHERE json_extract(data, '$.device_id') = ?",
+            (device_id,),
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else None
+
     @classmethod
     async def create(cls, db_path: str = "leashline.db") -> SqliteStorage:
         """Open (or create) the database and initialize schema."""

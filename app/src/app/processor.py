@@ -32,12 +32,16 @@ async def run_detection_processor(
             message = await queue.get()
 
             # Support envelope format {"pack_id": ..., "data": TrackPoint}
+            # or raw TrackPoint (from MQTT listener — look up pack by device)
             if isinstance(message, dict) and "pack_id" in message:
                 pack_id = message["pack_id"]
                 track_point = message["data"]
             else:
-                pack_id = "local"
                 track_point = message
+                pack_id = await storage.find_pack_by_device_id(track_point.device_id)
+                if pack_id is None:
+                    logger.debug("No pack found for device %s, skipping", track_point.device_id)
+                    continue
 
             # Store position
             pos_id = uuid.uuid4().hex[:12]

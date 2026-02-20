@@ -51,17 +51,9 @@ export default function PackSetup({ api, onPackReady }: PackSetupProps) {
         <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
           <h2 className="text-xl font-bold text-gray-900">Pack Created!</h2>
           <p className="text-gray-600">
-            Your pack <strong>{createdPack.name}</strong> is ready.
+            Your pack <strong>{createdPack.name}</strong> is ready. Add your dogs and
+            assign their collar device IDs to start tracking.
           </p>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-sm text-gray-500 mb-1">MQTT Topic Prefix</p>
-            <code className="text-sm font-mono text-blue-700 break-all">
-              {createdPack.mqtt_topic_prefix}/2/json/LongFast
-            </code>
-            <p className="text-xs text-gray-400 mt-2">
-              Configure this in your Meshtastic app&apos;s MQTT settings.
-            </p>
-          </div>
           <button
             onClick={() => onPackReady(createdPack)}
             className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"

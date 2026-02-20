@@ -338,6 +338,27 @@ class DynamoStorage:
         self._table = table_name
         self._endpoint_url = endpoint_url
 
+    async def find_pack_by_device_id(self, device_id: str) -> str | None:
+        """Look up which pack owns a device by scanning dog profiles across all packs."""
+        from engine.models.dog import DogProfile
+
+        async with self._session.client("dynamodb", **_client_kwargs(self._config, self._endpoint_url)) as client:
+            params: dict = {
+                "TableName": self._table,
+                "FilterExpression": "begins_with(SK, :prefix)",
+                "ExpressionAttributeValues": {":prefix": {"S": "DOG#"}},
+            }
+            while True:
+                resp = await client.scan(**params)
+                for item in resp.get("Items", []):
+                    dog = DogProfile.model_validate_json(item["data"]["S"])
+                    if dog.device_id == device_id:
+                        return item["PK"]["S"].removeprefix("PACK#")
+                if "LastEvaluatedKey" not in resp:
+                    break
+                params["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+        return None
+
     @classmethod
     async def create(
         cls,
