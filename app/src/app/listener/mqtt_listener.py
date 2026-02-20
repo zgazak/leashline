@@ -88,6 +88,18 @@ class MqttListener:
             logger.info("MQTT disconnected")
             self._set_state(ConnectionStatus.disconnected)
 
+    @staticmethod
+    def _extract_pack_id(topic: str) -> str:
+        """Extract pack_id from MQTT topic path.
+
+        leashline/{pack_id}/2/json/... → pack_id
+        msh/{region}/2/json/...       → "local"
+        """
+        parts = topic.split("/")
+        if len(parts) >= 2 and parts[0] == "leashline":
+            return parts[1]
+        return "local"
+
     def _on_message(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage) -> None:
         """Called for each received MQTT message."""
         topic = msg.topic
@@ -103,10 +115,12 @@ class MqttListener:
             return
 
         if track_point:
-            logger.debug("MQTT: received position from %s", track_point.device_id)
+            pack_id = self._extract_pack_id(topic)
+            logger.debug("MQTT: received position from %s (pack=%s)", track_point.device_id, pack_id)
 
+            envelope = {"pack_id": pack_id, "data": track_point}
             asyncio.run_coroutine_threadsafe(
-                self._event_bus.publish("positions", track_point),
+                self._event_bus.publish("positions", envelope),
                 self._loop,
             )
 

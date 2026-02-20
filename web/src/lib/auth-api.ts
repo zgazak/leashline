@@ -113,6 +113,8 @@ export function createAuthApi(getToken: () => Promise<string | null>) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(subscription),
       }),
+    getNearbyDevices: () =>
+      fetchJSON<{ device_id: string; last_seen: string; lat: number; lon: number; rssi: number | null; snr: number | null }[]>("/devices/nearby"),
   };
 }
 

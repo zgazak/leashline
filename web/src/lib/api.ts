@@ -86,6 +86,8 @@ function createApi(fetchFn: FetchFn = fetch) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(subscription),
       }),
+    getNearbyDevices: () =>
+      fetchJSON<{ device_id: string; last_seen: string; lat: number; lon: number; rssi: number | null; snr: number | null }[]>("/devices/nearby"),
   };
 }
 
@@ -111,5 +113,6 @@ export const scanBLE = defaultApi.scanBLE;
 export const getVapidKey = defaultApi.getVapidKey;
 export const subscribePush = defaultApi.subscribePush;
 export const unsubscribePush = defaultApi.unsubscribePush;
+export const getNearbyDevices = defaultApi.getNearbyDevices;
 
 export { createApi };

@@ -25,6 +25,17 @@ async def list_devices(
     return await storage.devices.list_for_pack(pack_id)
 
 
+@router.get("/nearby")
+async def nearby_devices(
+    user: UserInfo = Depends(get_current_user),
+    pack_id: str = Depends(get_pack_id),
+) -> list[dict]:
+    """Return Meshtastic devices seen via MQTT in the last 10 minutes."""
+    from app.processor import get_nearby_devices
+
+    return get_nearby_devices(pack_id)
+
+
 @router.post("/{device_id}/assign")
 async def assign_device(
     device_id: str,

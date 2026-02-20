@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from engine.detection.escape import DetectionConfig, EscapeDetector
@@ -14,6 +15,31 @@ if TYPE_CHECKING:
     from app.storage.sqlite import SqliteStorage
 
 logger = logging.getLogger(__name__)
+
+# In-memory registry of recently seen devices: {(pack_id, device_id): {...}}
+_recent_devices: dict[tuple[str, str], dict] = {}
+
+# How long to keep a device in the "nearby" list (seconds)
+_DEVICE_TTL_S = 600
+
+
+def get_nearby_devices(pack_id: str) -> list[dict]:
+    """Return recently-seen devices for a pack, sorted by last_seen desc."""
+    now = datetime.now(timezone.utc)
+    result = []
+    expired = []
+    for key, info in _recent_devices.items():
+        pid, device_id = key
+        age = (now - info["last_seen"]).total_seconds()
+        if age > _DEVICE_TTL_S:
+            expired.append(key)
+            continue
+        if pid == pack_id:
+            result.append({"device_id": device_id, **info})
+    for key in expired:
+        _recent_devices.pop(key, None)
+    result.sort(key=lambda d: d["last_seen"], reverse=True)
+    return result
 
 
 async def run_detection_processor(
@@ -42,6 +68,15 @@ async def run_detection_processor(
                 if pack_id is None:
                     logger.debug("No pack found for device %s, skipping", track_point.device_id)
                     continue
+
+            # Track device sighting (even if not assigned to a dog)
+            _recent_devices[(pack_id, track_point.device_id)] = {
+                "last_seen": datetime.now(timezone.utc),
+                "lat": track_point.reading.lat,
+                "lon": track_point.reading.lon,
+                "rssi": track_point.rssi,
+                "snr": track_point.snr,
+            }
 
             # Store position
             pos_id = uuid.uuid4().hex[:12]
