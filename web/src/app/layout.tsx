@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { CacheVersionManager } from "@/components/pwa/cache-version-manager";
+import { PWAProvider } from "@/components/pwa/pwa-provider";
 
 export const metadata: Metadata = {
   title: {
@@ -22,12 +24,9 @@ export default function RootLayout({
         <meta name="theme-color" content="#2563eb" />
       </head>
       <body>
-        {children}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}`,
-          }}
-        />
+        <CacheVersionManager>
+          <PWAProvider>{children}</PWAProvider>
+        </CacheVersionManager>
       </body>
     </html>
   );
