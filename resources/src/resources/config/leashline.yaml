@@ -4,7 +4,8 @@
 # Override chain (highest priority wins):
 #   1. This YAML (base config)
 #   2. secrets_path YAML file (gitignored, for local dev with prod config)
-#   3. Environment variables: DYNAMODB_TABLE, CLERK_SECRET_KEY, CLERK_JWT_KEY,
+#   3. Environment variables: DYNAMODB_TABLE, DYNAMODB_REGION (or AWS_DEFAULT_REGION),
+#      CLERK_SECRET_KEY, CLERK_JWT_KEY,
 #      MQTT_BROKER_HOST, MQTT_USERNAME, MQTT_PASSWORD (set by SST in ECS)
 
 host: "0.0.0.0"
@@ -17,7 +18,7 @@ storage:
   backend: "dynamodb"
   dynamodb:
     table_prefix: "leashline"
-    region: "us-east-1"
+    region: "us-west-2"
 
 # Meshtastic — in cloud mode, all data arrives via MQTT (no direct device connection)
 meshtastic:

@@ -89,6 +89,11 @@ self.addEventListener("message", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
+  // Skip cross-origin requests (e.g., API at api.dev.leashline.io)
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   // Network-only for API, SSE, and non-GET
   if (
     url.pathname.startsWith("/api") ||
