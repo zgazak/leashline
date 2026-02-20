@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { CacheVersionManager } from "@/components/pwa/cache-version-manager";
 import { PWAProvider } from "@/components/pwa/pwa-provider";
+import { VersionCheck } from "@/components/pwa/version-check";
 
 export const metadata: Metadata = {
   title: {
@@ -25,7 +26,10 @@ export default function RootLayout({
       </head>
       <body>
         <CacheVersionManager>
-          <PWAProvider>{children}</PWAProvider>
+          <PWAProvider>
+            <VersionCheck />
+            {children}
+          </PWAProvider>
         </CacheVersionManager>
       </body>
     </html>
