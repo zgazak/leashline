@@ -1,25 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Api } from "@/lib/auth-api";
 import type { Alert } from "@/lib/types";
-import { useSSE } from "./useSSE";
+
+const POLL_INTERVAL = 5000;
 
 export function useAlerts(api: Api) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    api.listAlerts().then(setAlerts).catch(() => {});
-    api.getToken().then(setToken).catch(() => {});
+    let active = true;
+
+    const poll = () => {
+      api.listAlerts().then((data) => {
+        if (active) setAlerts(data);
+      }).catch(() => {});
+    };
+
+    poll();
+    const id = setInterval(poll, POLL_INTERVAL);
+    return () => { active = false; clearInterval(id); };
   }, [api]);
-
-  const onMessage = useCallback((data: unknown) => {
-    const alert = data as Alert;
-    setAlerts((prev) => [alert, ...prev]);
-  }, []);
-
-  useSSE("/stream/alerts", "alert", onMessage, token);
 
   return alerts;
 }

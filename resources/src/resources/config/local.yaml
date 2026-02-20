@@ -1,8 +1,9 @@
 # Leashline local config — for running on your own machine.
-# No cloud, no auth, no MQTT broker needed. Just plug in your Meshtastic device.
+# Uses SQLite, no auth. MQTT credentials come from secrets/prod.yaml.
 
 host: "0.0.0.0"
 port: 8000
+secrets_path: "../../../../secrets/prod.yaml"
 
 storage:
   backend: "sqlite"
@@ -17,12 +18,13 @@ meshtastic:
   ble_address: null
 
 mqtt:
-  broker_host: "localhost"
-  broker_port: 1883
-  username: null
-  password: null
-  topic: "msh/+/2/json/#"
-  tls_enabled: false
+  broker_host: ""              # overridden by secrets/prod.yaml
+  broker_port: 8883
+  username: ""
+  password: ""
+  topic: "leashline/+/2/json/#"
+  tls_enabled: true
+  ca_certs: "resources/certs/emqxsl-ca.crt"
 
 detection:
   warning_buffer_m: 20.0
@@ -31,4 +33,7 @@ detection:
   max_history: 20
 
 auth:
+  enabled: false
+
+notifications:
   enabled: false

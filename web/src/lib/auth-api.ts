@@ -113,7 +113,6 @@ export function createAuthApi(getToken: () => Promise<string | null>) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(subscription),
       }),
-    getToken,
   };
 }
 
