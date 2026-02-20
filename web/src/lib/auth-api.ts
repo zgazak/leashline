@@ -11,7 +11,7 @@ import type {
   TrackPoint,
 } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 export function createAuthApi(getToken: () => Promise<string | null>) {
   async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
