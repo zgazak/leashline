@@ -16,26 +16,26 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# In-memory registry of recently seen devices: {(pack_id, device_id): {...}}
-_recent_devices: dict[tuple[str, str], dict] = {}
+# In-memory registry of recently seen devices: {device_id: {...}}
+# This is a global discovery list — not pack-scoped — so any user can
+# discover and claim an unassigned collar heard via MQTT.
+_recent_devices: dict[str, dict] = {}
 
 # How long to keep a device in the "nearby" list (seconds)
 _DEVICE_TTL_S = 600
 
 
-def get_nearby_devices(pack_id: str) -> list[dict]:
-    """Return recently-seen devices for a pack, sorted by last_seen desc."""
+def get_nearby_devices() -> list[dict]:
+    """Return all recently-seen devices, sorted by last_seen desc."""
     now = datetime.now(timezone.utc)
     result = []
     expired = []
-    for key, info in _recent_devices.items():
-        pid, device_id = key
+    for device_id, info in _recent_devices.items():
         age = (now - info["last_seen"]).total_seconds()
         if age > _DEVICE_TTL_S:
-            expired.append(key)
+            expired.append(device_id)
             continue
-        if pid == pack_id:
-            result.append({"device_id": device_id, **info})
+        result.append({"device_id": device_id, **info})
     for key in expired:
         _recent_devices.pop(key, None)
     result.sort(key=lambda d: d["last_seen"], reverse=True)
@@ -69,8 +69,8 @@ async def run_detection_processor(
                     logger.debug("No pack found for device %s, skipping", track_point.device_id)
                     continue
 
-            # Track device sighting (even if not assigned to a dog)
-            _recent_devices[(pack_id, track_point.device_id)] = {
+            # Track device sighting globally for discovery (even if not assigned to a dog)
+            _recent_devices[track_point.device_id] = {
                 "last_seen": datetime.now(timezone.utc),
                 "lat": track_point.reading.lat,
                 "lon": track_point.reading.lon,
