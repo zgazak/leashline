@@ -350,7 +350,7 @@ export default function Map({
 
   if (!token) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-500">
+      <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
         <div className="text-center p-8">
           <p className="text-lg font-semibold mb-2">Mapbox token not set</p>
           <p className="text-sm">
@@ -368,5 +368,5 @@ export default function Map({
     );
   }
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return <div ref={containerRef} className="w-full h-full" />;
 }

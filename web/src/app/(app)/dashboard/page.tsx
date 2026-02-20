@@ -234,19 +234,21 @@ export default function DashboardPage() {
   return (
     <div className="relative h-[100dvh] overflow-hidden">
       {/* Full-screen map */}
-      <Map
-        positions={positions}
-        geofences={geofences}
-        focusDogId={focusDogId}
-        dogNames={dogNames}
-        drawingMode={drawingMode}
-        editingGeofenceId={editingGeofenceId}
-        onPolygonComplete={handlePolygonComplete}
-        onPolygonUpdated={handlePolygonUpdated}
-        onDrawCancel={handleDrawCancel}
-        onMapInteraction={handleMapInteraction}
-        bottomPadding={sheetHeight}
-      />
+      <div className="absolute inset-0">
+        <Map
+          positions={positions}
+          geofences={geofences}
+          focusDogId={focusDogId}
+          dogNames={dogNames}
+          drawingMode={drawingMode}
+          editingGeofenceId={editingGeofenceId}
+          onPolygonComplete={handlePolygonComplete}
+          onPolygonUpdated={handlePolygonUpdated}
+          onDrawCancel={handleDrawCancel}
+          onMapInteraction={handleMapInteraction}
+          bottomPadding={sheetHeight}
+        />
+      </div>
 
       {/* Escape tracking banner */}
       {focusDogId && (
