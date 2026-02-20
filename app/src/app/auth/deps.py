@@ -17,6 +17,35 @@ def _get_auth_config():
     return get_config().auth
 
 
+def _authenticate_jwt(request: Request) -> dict:
+    """Verify Clerk JWT and return claims payload.
+
+    Uses jwt_key for networkless verification when available,
+    falls back to secret_key for JWKS-based verification.
+    """
+    from clerk_backend_api.security import (
+        AuthenticateRequestOptions,
+        authenticate_request,
+    )
+
+    auth_cfg = _get_auth_config()
+
+    request_state = authenticate_request(
+        request,
+        AuthenticateRequestOptions(
+            secret_key=auth_cfg.clerk.secret_key or None,
+            jwt_key=auth_cfg.clerk.jwt_key or None,
+            clock_skew_in_ms=5000,
+        ),
+    )
+
+    if not request_state.is_signed_in:
+        logger.warning("Authentication failed: %s", request_state.message)
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    return request_state.payload
+
+
 async def get_current_user(request: Request) -> UserInfo:
     """Validate JWT and return UserInfo. In dev_mode, returns a synthetic user."""
     auth_cfg = _get_auth_config()
@@ -28,25 +57,8 @@ async def get_current_user(request: Request) -> UserInfo:
             email="dev@leashline.local",
         )
 
-    # Extract Bearer token
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing authorization header")
-
     try:
-        from clerk_backend_api import Clerk
-        from clerk_backend_api.jwks_helpers import authenticate_request
-
-        clerk = Clerk(bearer_auth=auth_cfg.clerk.secret_key)
-        request_state = authenticate_request(
-            clerk,
-            request,
-        )
-
-        if not request_state.is_signed_in:
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-        claims = request_state.payload
+        claims = _authenticate_jwt(request)
         return UserInfo(
             user_id=claims.get("sub", ""),
             session_id=claims.get("sid"),
@@ -95,18 +107,8 @@ async def verify_token_param(
     headers["Authorization"] = f"Bearer {token}"
 
     try:
-        from clerk_backend_api import Clerk
-        from clerk_backend_api.jwks_helpers import authenticate_request
-
-        clerk = Clerk(bearer_auth=auth_cfg.clerk.secret_key)
-        # Create a new request with the injected header
         modified_request = Request(scope, request.receive, request._send)
-        request_state = authenticate_request(clerk, modified_request)
-
-        if not request_state.is_signed_in:
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-        claims = request_state.payload
+        claims = _authenticate_jwt(modified_request)
         return UserInfo(
             user_id=claims.get("sub", ""),
             session_id=claims.get("sid"),
