@@ -4,7 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import type { Api } from "@/lib/auth-api";
 import type { Pack, PackMember } from "@/lib/types";
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(/\/+$/, "");
+function getSiteUrl() {
+  const env = process.env.NEXT_PUBLIC_SITE_URL;
+  if (env) return env.replace(/\/+$/, "");
+  if (typeof window !== "undefined") return window.location.origin;
+  return "";
+}
 
 interface PackSettingsProps {
   api: Api;
@@ -33,7 +38,7 @@ export default function PackSettings({ api, onClose }: PackSettingsProps) {
   const handleGenerateInvite = useCallback(async () => {
     try {
       const { code } = await api.createInvite();
-      setInviteLink(`${SITE_URL}/join?code=${code}`);
+      setInviteLink(`${getSiteUrl()}/join?code=${code}`);
       setCopied(false);
     } catch {
       setError("Failed to generate invite");
