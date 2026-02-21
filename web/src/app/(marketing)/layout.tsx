@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AuthNav from "@/components/AuthNav";
 
 export default function MarketingLayout({
   children,
@@ -13,18 +14,7 @@ export default function MarketingLayout({
             Leashline
           </Link>
           <div className="flex items-center gap-4">
-            <Link
-              href="/sign-in"
-              className="text-sm text-gray-600 hover:text-gray-900"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/sign-up"
-              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Get Started
-            </Link>
+            <AuthNav />
           </div>
         </nav>
       </header>

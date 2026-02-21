@@ -91,6 +91,8 @@ export function createAuthApi(getToken: () => Promise<string | null>) {
       fetchJSON<{ code: string; expires_at: string }>("/packs/invite", {
         method: "POST",
       }),
+    previewInvite: (code: string) =>
+      fetchJSON<{ pack_name: string; expires_at: string }>(`/packs/invite/${code}`),
     joinPack: (code: string) =>
       fetchJSON<Pack>("/packs/join", {
         method: "POST",

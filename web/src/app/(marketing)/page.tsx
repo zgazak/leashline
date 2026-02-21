@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import AuthHeroCTA from "@/components/AuthHeroCTA";
 
 export const metadata: Metadata = {
   title: "Leashline | Dog Escape Detection",
@@ -26,20 +27,7 @@ export default function LandingPage() {
             LoRa radio tracking with smart geofencing gives you instant escape
             alerts — miles of range, no cell coverage needed.
           </p>
-          <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/sign-up"
-              className="inline-flex items-center justify-center px-6 py-3 text-base font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Get Started
-            </Link>
-            <Link
-              href="/sign-in"
-              className="inline-flex items-center justify-center px-6 py-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Sign In
-            </Link>
-          </div>
+          <AuthHeroCTA />
         </div>
       </section>
 

@@ -107,6 +107,29 @@ async def create_invite(
     return InviteResponse(code=code, expires_at=invite.expires_at)
 
 
+@router.get("/invite/{code}")
+async def preview_invite(code: str) -> dict:
+    """Public endpoint — preview an invite without auth."""
+    from app.main import get_storage
+
+    storage = get_storage()
+    invite = await storage.packs.get_invite(code)
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invalid invite code")
+
+    if invite.used_by:
+        raise HTTPException(status_code=410, detail="Invite already used")
+
+    if datetime.now(timezone.utc) > invite.expires_at:
+        raise HTTPException(status_code=410, detail="Invite expired")
+
+    pack = await storage.packs.get_pack(invite.pack_id)
+    if not pack:
+        raise HTTPException(status_code=404, detail="Pack not found")
+
+    return {"pack_name": pack.name, "expires_at": invite.expires_at.isoformat()}
+
+
 @router.post("/join")
 async def join_pack(
     req: JoinPackRequest,

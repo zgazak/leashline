@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { Api } from "@/lib/auth-api";
 import type { Pack, PackMember } from "@/lib/types";
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(/\/+$/, "");
+
 interface PackSettingsProps {
   api: Api;
   onClose: () => void;
@@ -12,7 +14,8 @@ interface PackSettingsProps {
 export default function PackSettings({ api, onClose }: PackSettingsProps) {
   const [pack, setPack] = useState<Pack | null>(null);
   const [members, setMembers] = useState<PackMember[]>([]);
-  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -30,11 +33,21 @@ export default function PackSettings({ api, onClose }: PackSettingsProps) {
   const handleGenerateInvite = useCallback(async () => {
     try {
       const { code } = await api.createInvite();
-      setInviteCode(code);
+      setInviteLink(`${SITE_URL}/join?code=${code}`);
+      setCopied(false);
     } catch {
       setError("Failed to generate invite");
     }
   }, [api]);
+
+  const handleCopy = useCallback(() => {
+    if (inviteLink) {
+      navigator.clipboard.writeText(inviteLink).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    }
+  }, [inviteLink]);
 
   const handleRemoveMember = useCallback(
     async (userId: string) => {
@@ -112,16 +125,27 @@ export default function PackSettings({ api, onClose }: PackSettingsProps) {
                 onClick={handleGenerateInvite}
                 className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 text-sm"
               >
-                Generate Invite Code
+                Generate Invite Link
               </button>
-              {inviteCode && (
-                <div className="mt-3 bg-green-50 rounded-lg p-3 text-center">
-                  <p className="text-xs text-green-600 mb-1">
-                    Share this code (expires in 7 days)
+              {inviteLink && (
+                <div className="mt-3 bg-green-50 rounded-lg p-3">
+                  <p className="text-xs text-green-600 mb-2">
+                    Share this link (expires in 7 days)
                   </p>
-                  <code className="text-lg font-mono font-bold text-green-800">
-                    {inviteCode}
-                  </code>
+                  <div className="flex items-center gap-2">
+                    <input
+                      readOnly
+                      value={inviteLink}
+                      className="flex-1 text-xs font-mono bg-white border border-green-200 rounded px-2 py-1.5 text-green-800 truncate"
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                    />
+                    <button
+                      onClick={handleCopy}
+                      className="shrink-0 text-xs bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700"
+                    >
+                      {copied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

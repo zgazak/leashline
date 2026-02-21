@@ -115,4 +115,15 @@ export const subscribePush = defaultApi.subscribePush;
 export const unsubscribePush = defaultApi.unsubscribePush;
 export const getNearbyDevices = defaultApi.getNearbyDevices;
 
+// Public (no auth) helper for invite preview
+const API_URL_EXPORT = API_URL;
+export async function previewInvite(code: string): Promise<{ pack_name: string; expires_at: string }> {
+  const res = await fetch(`${API_URL_EXPORT}/packs/invite/${encodeURIComponent(code)}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
 export { createApi };

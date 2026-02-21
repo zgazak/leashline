@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/join(.*)",
 ]);
 
 function noAuthMiddleware(request: NextRequest) {
