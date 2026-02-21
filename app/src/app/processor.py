@@ -57,17 +57,11 @@ async def run_detection_processor(
         while True:
             message = await queue.get()
 
-            # Support envelope format {"pack_id": ..., "data": TrackPoint}
-            # or raw TrackPoint (from MQTT listener — look up pack by device)
+            # Extract track_point from envelope or raw message
             if isinstance(message, dict) and "pack_id" in message:
-                pack_id = message["pack_id"]
                 track_point = message["data"]
             else:
                 track_point = message
-                pack_id = await storage.find_pack_by_device_id(track_point.device_id)
-                if pack_id is None:
-                    logger.debug("No pack found for device %s, skipping", track_point.device_id)
-                    continue
 
             # Track device sighting globally for discovery (even if not assigned to a dog)
             _recent_devices[track_point.device_id] = {
@@ -78,7 +72,16 @@ async def run_detection_processor(
                 "snr": track_point.snr,
             }
 
-            # Store position
+            # Resolve pack by device→dog ownership.
+            # The MQTT topic pack_id (e.g. "local") is just a transport
+            # detail — the real pack is whichever one has a dog assigned
+            # to this device_id.
+            pack_id = await storage.find_pack_by_device_id(track_point.device_id)
+            if pack_id is None:
+                logger.debug("No pack found for device %s, skipping", track_point.device_id)
+                continue
+
+            # Store position under the owning pack
             pos_id = uuid.uuid4().hex[:12]
             await storage.positions.put(pos_id, track_point, pack_id)
 
