@@ -25,12 +25,20 @@ FENCE = Geofence(
 BASE_TIME = datetime(2025, 6, 1, 12, 0, 0)
 
 
-def _make_point(lat: float, lon: float, seconds_offset: float = 0, dog_id: str = "rex") -> TrackPoint:
+def _make_point(
+    lat: float,
+    lon: float,
+    seconds_offset: float = 0,
+    dog_id: str = "rex",
+    *,
+    hdop: float | None = None,
+    sats: int | None = None,
+) -> TrackPoint:
     ts = BASE_TIME + timedelta(seconds=seconds_offset)
     return TrackPoint(
         device_id="!aabbccdd",
         dog_id=dog_id,
-        reading=GpsReading(lat=lat, lon=lon, timestamp=ts),
+        reading=GpsReading(lat=lat, lon=lon, timestamp=ts, hdop=hdop, sats=sats),
         received_at=ts,
     )
 
@@ -274,8 +282,8 @@ class TestNoiseAwareDetection:
         # Far outside — breach
         det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
 
-        # Back inside — return
-        alert = det.evaluate(_make_point(35.001, -80.0, 5), FENCE)
+        # Back inside — return (enough time gap so speed < 30 m/s)
+        alert = det.evaluate(_make_point(35.001, -80.0, 15), FENCE)
         assert alert is not None
         assert alert.type == AlertType.return_detected
 
@@ -362,3 +370,88 @@ class TestNoiseAwareDetection:
         alert = det.evaluate(_make_point(35.0001, -80.0, 0), FENCE)
         assert alert is not None
         assert alert.type == AlertType.boundary_approach
+
+    def test_anomalous_jump_rejected(self):
+        """GPS teleport is silently dropped — not added to history."""
+        cfg = self._noise_config(max_dog_speed_mps=30.0)
+        det = EscapeDetector(cfg)
+
+        # Normal point inside fence
+        det.evaluate(_make_point(35.001, -80.0, 0), FENCE)
+
+        # GPS teleport: ~11km in 30s = ~370 m/s — way beyond 30 m/s
+        alert = det.evaluate(_make_point(35.100, -80.0, 30), FENCE)
+        assert alert is None  # Rejected entirely
+
+        # Next normal point should still work (teleport wasn't added to history)
+        alert = det.evaluate(_make_point(35.001, -80.0, 45), FENCE)
+        assert alert is None  # Still inside, no alert
+
+    def test_anomalous_jump_doesnt_trigger_breach(self):
+        """A GPS teleport outside the fence doesn't cause a breach alert."""
+        cfg = self._noise_config(max_dog_speed_mps=30.0)
+        det = EscapeDetector(cfg)
+
+        # Build up history inside
+        for i in range(3):
+            det.evaluate(_make_point(35.001, -80.0, i * 15), FENCE)
+
+        # GPS teleport to far outside (34.9 is ~11km south)
+        alert = det.evaluate(_make_point(34.900, -80.0, 60), FENCE)
+        assert alert is None  # Rejected — impossibly fast
+
+    def test_poor_hdop_suppresses_marginal_breach(self):
+        """High HDOP inflates effective noise radius, suppressing marginal breaches."""
+        cfg = self._noise_config(
+            default_noise_radius_m=8.0,
+            min_breach_significance=2.0,
+            hdop_baseline=1.5,
+        )
+        det = EscapeDetector(cfg)
+
+        # Build zigzag history so coherence is low
+        det.evaluate(_make_point(35.00005, -80.0, 0, hdop=1.0), FENCE)
+        det.evaluate(_make_point(34.99997, -80.0, 15, hdop=1.0), FENCE)
+        det.evaluate(_make_point(35.00003, -80.0, 30, hdop=1.0), FENCE)
+        det.evaluate(_make_point(34.99998, -80.0, 45, hdop=1.0), FENCE)
+
+        # ~20m outside with bad HDOP=6.0 → effective noise = 8 * (6/1.5) = 32m
+        # significance = 20/32 ≈ 0.6 < 2.0 → suppressed
+        alert = det.evaluate(_make_point(34.99982, -80.0, 60, hdop=6.0), FENCE)
+        assert alert is None  # Suppressed — poor fix quality inflated uncertainty
+
+    def test_poor_hdop_doesnt_suppress_large_breach(self):
+        """Even with bad HDOP, a very far breach still alerts."""
+        cfg = self._noise_config(
+            default_noise_radius_m=8.0,
+            min_breach_significance=2.0,
+            hdop_baseline=1.5,
+            max_uncertainty_factor=5.0,
+        )
+        det = EscapeDetector(cfg)
+
+        # Even with max uncertainty (5×), effective noise = 8 * 5 = 40m
+        # 111m outside → significance = 111/40 ≈ 2.8 > 2.0
+        alert = det.evaluate(_make_point(34.999, -80.0, 0, hdop=30.0), FENCE)
+        assert alert is not None
+        assert alert.type == AlertType.geofence_breach
+
+    def test_low_sats_suppresses_marginal_breach(self):
+        """Few satellites inflate uncertainty, suppressing marginal breaches."""
+        cfg = self._noise_config(
+            default_noise_radius_m=8.0,
+            min_breach_significance=2.0,
+            min_sats=6,
+        )
+        det = EscapeDetector(cfg)
+
+        # Build zigzag history
+        det.evaluate(_make_point(35.00005, -80.0, 0, sats=10), FENCE)
+        det.evaluate(_make_point(34.99997, -80.0, 15, sats=10), FENCE)
+        det.evaluate(_make_point(35.00003, -80.0, 30, sats=10), FENCE)
+        det.evaluate(_make_point(34.99998, -80.0, 45, sats=10), FENCE)
+
+        # ~20m outside with only 3 sats → effective noise = 8 * (6/3) = 16m
+        # significance = 20/16 = 1.25 < 2.0 → suppressed
+        alert = det.evaluate(_make_point(34.99982, -80.0, 60, sats=3), FENCE)
+        assert alert is None  # Suppressed — low sat count inflated uncertainty

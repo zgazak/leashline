@@ -60,6 +60,57 @@ def compute_noise_from_stationary(points: list[TrackPoint]) -> float:
     return math.sqrt(sum_sq / n)
 
 
+def fix_uncertainty_factor(
+    point: TrackPoint,
+    hdop_baseline: float = 1.5,
+    min_sats: int = 6,
+    max_factor: float = 5.0,
+) -> float:
+    """Compute a per-fix uncertainty multiplier from GPS quality metadata.
+
+    Returns a value >= 1.0 that scales the effective noise radius.
+    Good fix (many sats, low HDOP) → 1.0. Poor fix → higher.
+
+    When metadata is absent (None), returns 1.0 (no penalty — can't tell).
+    """
+    factor = 1.0
+    reading = point.reading
+
+    # HDOP: ratio against baseline (HDOP 6.0 with baseline 1.5 → 4× uncertainty)
+    if reading.hdop is not None and reading.hdop > hdop_baseline:
+        factor = max(factor, reading.hdop / hdop_baseline)
+
+    # PDOP: same logic, slightly more conservative baseline
+    if reading.pdop is not None and reading.pdop > hdop_baseline * 1.5:
+        factor = max(factor, reading.pdop / (hdop_baseline * 1.5))
+
+    # Low satellite count: fewer sats → proportionally worse
+    if reading.sats is not None and reading.sats > 0 and reading.sats < min_sats:
+        factor = max(factor, min_sats / reading.sats)
+
+    return min(factor, max_factor)
+
+
+def is_anomalous_jump(
+    prev: TrackPoint,
+    curr: TrackPoint,
+    max_speed_mps: float = 30.0,
+) -> bool:
+    """Return True if the implied speed between two points is physically impossible.
+
+    Default 30 m/s ≈ 67 mph — generous for any dog, catches GPS teleports.
+    """
+    dt = (curr.reading.timestamp - prev.reading.timestamp).total_seconds()
+    if dt <= 0:
+        return False
+
+    dist = haversine(
+        prev.reading.lat, prev.reading.lon,
+        curr.reading.lat, curr.reading.lon,
+    )
+    return (dist / dt) > max_speed_mps
+
+
 def update_noise_profile(
     existing: NoiseProfile | None,
     new_noise_radius_m: float,

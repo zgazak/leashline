@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from engine.detection.noise import (
     compute_noise_from_stationary,
     detect_stationary,
+    fix_uncertainty_factor,
+    is_anomalous_jump,
     update_noise_profile,
 )
 from engine.models.noise import NoiseProfile
@@ -13,12 +15,20 @@ from engine.models.position import GpsReading, TrackPoint
 BASE_TIME = datetime(2025, 6, 1, 12, 0, 0)
 
 
-def _make_point(lat: float, lon: float, seconds_offset: float = 0) -> TrackPoint:
+def _make_point(
+    lat: float,
+    lon: float,
+    seconds_offset: float = 0,
+    *,
+    hdop: float | None = None,
+    pdop: float | None = None,
+    sats: int | None = None,
+) -> TrackPoint:
     ts = BASE_TIME + timedelta(seconds=seconds_offset)
     return TrackPoint(
         device_id="!aabbccdd",
         dog_id="rex",
-        reading=GpsReading(lat=lat, lon=lon, timestamp=ts),
+        reading=GpsReading(lat=lat, lon=lon, timestamp=ts, hdop=hdop, pdop=pdop, sats=sats),
         received_at=ts,
     )
 
@@ -183,3 +193,85 @@ class TestUpdateNoiseProfile:
         )
         # EMA: 0.5 * 10.0 + 0.5 * 0.0 = 5.0
         assert abs(updated.noise_radius_m - 5.0) < 0.01
+
+
+class TestFixUncertaintyFactor:
+    def test_no_metadata_returns_1(self):
+        """No quality metadata → no penalty."""
+        p = _make_point(35.0, -80.0)
+        assert fix_uncertainty_factor(p) == 1.0
+
+    def test_good_fix_returns_1(self):
+        """Good HDOP and plenty of sats → no penalty."""
+        p = _make_point(35.0, -80.0, hdop=1.0, sats=10)
+        assert fix_uncertainty_factor(p) == 1.0
+
+    def test_high_hdop_inflates(self):
+        """HDOP 6.0 with baseline 1.5 → 4× uncertainty."""
+        p = _make_point(35.0, -80.0, hdop=6.0)
+        factor = fix_uncertainty_factor(p, hdop_baseline=1.5)
+        assert abs(factor - 4.0) < 0.01
+
+    def test_low_sats_inflates(self):
+        """3 sats with min_sats=6 → 2× uncertainty."""
+        p = _make_point(35.0, -80.0, sats=3)
+        factor = fix_uncertainty_factor(p, min_sats=6)
+        assert abs(factor - 2.0) < 0.01
+
+    def test_hdop_at_baseline_no_penalty(self):
+        """HDOP exactly at baseline → 1.0."""
+        p = _make_point(35.0, -80.0, hdop=1.5)
+        assert fix_uncertainty_factor(p, hdop_baseline=1.5) == 1.0
+
+    def test_combined_takes_worst(self):
+        """Both HDOP and sats are bad → use the worse factor."""
+        p = _make_point(35.0, -80.0, hdop=4.5, sats=3)
+        factor = fix_uncertainty_factor(p, hdop_baseline=1.5, min_sats=6)
+        # HDOP factor = 4.5/1.5 = 3.0, sat factor = 6/3 = 2.0 → max = 3.0
+        assert abs(factor - 3.0) < 0.01
+
+    def test_capped_at_max(self):
+        """Factor is capped at max_factor."""
+        p = _make_point(35.0, -80.0, hdop=30.0)
+        factor = fix_uncertainty_factor(p, hdop_baseline=1.5, max_factor=5.0)
+        assert factor == 5.0
+
+    def test_pdop_inflates(self):
+        """High PDOP also inflates uncertainty."""
+        p = _make_point(35.0, -80.0, pdop=9.0)
+        factor = fix_uncertainty_factor(p, hdop_baseline=1.5)
+        # pdop baseline = 1.5 * 1.5 = 2.25; factor = 9.0 / 2.25 = 4.0
+        assert abs(factor - 4.0) < 0.01
+
+
+class TestIsAnomalousJump:
+    def test_normal_movement(self):
+        """~111m in 15s ≈ 7.4 m/s — normal dog speed."""
+        p1 = _make_point(35.000, -80.0, 0)
+        p2 = _make_point(35.001, -80.0, 15)
+        assert is_anomalous_jump(p1, p2) is False
+
+    def test_teleport(self):
+        """~11km in 30s ≈ 370 m/s — GPS glitch."""
+        p1 = _make_point(35.000, -80.0, 0)
+        p2 = _make_point(35.100, -80.0, 30)
+        assert is_anomalous_jump(p1, p2) is True
+
+    def test_zero_time_delta(self):
+        """Same timestamp → not anomalous (can't compute speed)."""
+        p1 = _make_point(35.000, -80.0, 0)
+        p2 = _make_point(35.100, -80.0, 0)
+        assert is_anomalous_jump(p1, p2) is False
+
+    def test_borderline_speed(self):
+        """~111m in 3s ≈ 37 m/s — just over 30 m/s threshold."""
+        p1 = _make_point(35.000, -80.0, 0)
+        p2 = _make_point(35.001, -80.0, 3)
+        assert is_anomalous_jump(p1, p2) is True
+
+    def test_custom_threshold(self):
+        """Custom max speed threshold."""
+        p1 = _make_point(35.000, -80.0, 0)
+        p2 = _make_point(35.001, -80.0, 3)
+        # ~37 m/s, but threshold raised to 50
+        assert is_anomalous_jump(p1, p2, max_speed_mps=50.0) is False

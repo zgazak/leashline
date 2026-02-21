@@ -12,6 +12,8 @@ from engine.detection.motion import compute_motion_vector
 from engine.detection.noise import (
     compute_noise_from_stationary,
     detect_stationary,
+    fix_uncertainty_factor,
+    is_anomalous_jump,
     update_noise_profile,
 )
 from engine.detection.scatter import compute_scatter
@@ -37,6 +39,12 @@ class DetectionConfig(BaseModel, frozen=True):
     min_escape_coherence: float = Field(default=0.4, description="Linearity threshold for escape motion")
     noise_stationarity_threshold_m: float = Field(default=5.0, description="Max displacement for stationary detection")
     noise_min_stationary_points: int = Field(default=4, description="Min points for stationary window")
+
+    # Per-fix quality scaling
+    hdop_baseline: float = Field(default=1.5, description="HDOP at or below this is considered good")
+    min_sats: int = Field(default=6, description="Below this sat count, inflate uncertainty")
+    max_uncertainty_factor: float = Field(default=5.0, description="Cap on per-fix uncertainty multiplier")
+    max_dog_speed_mps: float = Field(default=30.0, description="Reject fixes implying speed above this (m/s)")
 
 
 class DogState:
@@ -84,6 +92,11 @@ class EscapeDetector:
         """Evaluate a new position against a geofence. Returns an Alert on state transition."""
         dog_id = point.dog_id or point.device_id
         state = self._get_state(dog_id)
+
+        # Reject anomalous jumps (GPS teleports) — don't even add to history
+        if self.config.noise_aware and state.recent_points:
+            if is_anomalous_jump(state.recent_points[-1], point, self.config.max_dog_speed_mps):
+                return None
 
         # Update history
         state.recent_points.append(point)
@@ -201,11 +214,20 @@ class EscapeDetector:
         now: datetime,
     ) -> Alert | None:
         """Noise-aware breach detection — suppresses GPS noise near boundaries."""
-        noise_radius = (
+        base_noise_radius = (
             state.noise_profile.noise_radius_m
             if state.noise_profile and state.noise_profile.confidence > 0
             else self.config.default_noise_radius_m
         )
+
+        # Scale noise radius by per-fix quality (poor HDOP/sats → wider uncertainty)
+        uncertainty = fix_uncertainty_factor(
+            point,
+            hdop_baseline=self.config.hdop_baseline,
+            min_sats=self.config.min_sats,
+            max_factor=self.config.max_uncertainty_factor,
+        )
+        noise_radius = base_noise_radius * uncertainty
 
         # Distance outside fence (proximity.distance_to_boundary_meters is negative when outside)
         distance_outside = abs(proximity.distance_to_boundary_meters)
