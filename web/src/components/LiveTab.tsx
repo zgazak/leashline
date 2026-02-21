@@ -1,13 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { DogProfile, TrackPoint } from "@/lib/types";
+import type { DeviceTelemetry, DogProfile, TrackPoint } from "@/lib/types";
 
 interface LiveTabProps {
   dogs: DogProfile[];
   positions: Record<string, TrackPoint>;
+  telemetry: Record<string, DeviceTelemetry>;
   dogZones: Record<string, string>;
   onFocusDog: (deviceId: string) => void;
+}
+
+function batteryColor(level: number): string {
+  if (level > 50) return "text-green-500";
+  if (level > 20) return "text-yellow-500";
+  return "text-red-500";
 }
 
 function timeAgo(iso: string): string {
@@ -35,6 +42,7 @@ function statusColor(
 export default function LiveTab({
   dogs,
   positions,
+  telemetry,
   dogZones,
   onFocusDog,
 }: LiveTabProps) {
@@ -57,6 +65,7 @@ export default function LiveTab({
     <div className="p-2 space-y-1">
       {dogs.map((dog) => {
         const tp = dog.device_id ? positions[dog.device_id] : undefined;
+        const telem = dog.device_id ? telemetry[dog.device_id] : undefined;
         const zone = dogZones[dog.id];
         return (
           <button
@@ -76,8 +85,15 @@ export default function LiveTab({
                 {zone ? `at ${zone}` : dog.geofence_ids.length > 0 ? "outside zone" : "no zone assigned"}
               </span>
             </span>
-            <span className="text-xs text-gray-400 shrink-0">
-              {tp ? timeAgo(tp.received_at) : "no signal"}
+            <span className="flex items-center gap-2 shrink-0">
+              {telem?.battery_level != null && (
+                <span className={`text-xs font-medium ${batteryColor(telem.battery_level)}`}>
+                  {telem.battery_level}%
+                </span>
+              )}
+              <span className="text-xs text-gray-400">
+                {tp ? timeAgo(tp.received_at) : "no signal"}
+              </span>
             </span>
           </button>
         );

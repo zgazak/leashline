@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { DogProfile, Geofence, TrackPoint } from "@/lib/types";
+import type { DeviceTelemetry, DogProfile, Geofence, TrackPoint } from "@/lib/types";
 import AddDogModal from "@/components/AddDogModal";
 import DogGeofenceAssign from "@/components/DogGeofenceAssign";
 import DogSettingsModal from "@/components/DogSettingsModal";
@@ -9,11 +9,18 @@ import DogSettingsModal from "@/components/DogSettingsModal";
 interface DogListProps {
   dogs: DogProfile[];
   positions: Record<string, TrackPoint>;
+  telemetry: Record<string, DeviceTelemetry>;
   geofences: Geofence[];
   dogZones: Record<string, string>;
   onDogAdded: (dog: DogProfile) => void;
   onDogDeleted: (id: string) => void;
   onDogUpdated: (dog: DogProfile) => void;
+}
+
+function batteryColor(level: number): string {
+  if (level > 50) return "text-green-500";
+  if (level > 20) return "text-yellow-500";
+  return "text-red-500";
 }
 
 function timeAgo(iso: string): string {
@@ -29,6 +36,7 @@ function timeAgo(iso: string): string {
 export default function DogList({
   dogs,
   positions,
+  telemetry,
   geofences,
   dogZones,
   onDogAdded,
@@ -68,6 +76,7 @@ export default function DogList({
         <ul className="space-y-2">
           {dogs.map((dog) => {
             const tp = dog.device_id ? positions[dog.device_id] : undefined;
+            const telem = dog.device_id ? telemetry[dog.device_id] : undefined;
             return (
               <li
                 key={dog.id}
@@ -80,6 +89,11 @@ export default function DogList({
                   )}
                 </span>
                 <span className="flex items-center gap-2">
+                  {telem?.battery_level != null && (
+                    <span className={`text-xs font-medium ${batteryColor(telem.battery_level)}`}>
+                      {telem.battery_level}%
+                    </span>
+                  )}
                   <span className="text-gray-400 text-xs">
                     {tp ? timeAgo(tp.received_at) : "no signal"}
                   </span>

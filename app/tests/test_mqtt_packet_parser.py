@@ -6,7 +6,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.listener.mqtt_packet_parser import parse_mqtt_json_packet, parse_mqtt_protobuf_packet
+from app.listener.mqtt_packet_parser import (
+    parse_mqtt_json_packet,
+    parse_mqtt_json_telemetry,
+    parse_mqtt_protobuf_packet,
+)
 
 
 # --- JSON parser tests ---
@@ -211,3 +215,117 @@ class TestParseProtobufPacket:
         result = parse_mqtt_protobuf_packet(b"not a protobuf")
         # Will return None either because meshtastic isn't installed or parse fails
         assert result is None
+
+
+# --- JSON telemetry parser tests ---
+
+
+def _make_telemetry_payload(
+    battery_level: int = 87,
+    voltage: float = 4.1,
+    uptime_seconds: int = 3600,
+    channel_utilization: float = 5.2,
+    air_util_tx: float = 1.3,
+    time: int = 1700000000,
+    from_id: int = 0xAABBCCDD,
+    msg_type: str = "telemetry",
+    rssi: int | None = -85,
+    snr: float | None = 7.0,
+) -> bytes:
+    """Build a Meshtastic JSON MQTT telemetry payload."""
+    data: dict = {
+        "type": msg_type,
+        "from": from_id,
+        "sender": "!11223344",
+        "payload": {
+            "battery_level": battery_level,
+            "voltage": voltage,
+            "uptime_seconds": uptime_seconds,
+            "channel_utilization": channel_utilization,
+            "air_util_tx": air_util_tx,
+            "time": time,
+        },
+    }
+    if rssi is not None:
+        data["rssi"] = rssi
+    if snr is not None:
+        data["snr"] = snr
+    return json.dumps(data).encode()
+
+
+class TestParseTelemetryPacket:
+    def test_basic_telemetry(self):
+        payload = _make_telemetry_payload()
+        result = parse_mqtt_json_telemetry(payload, "leashline/local/2/json/LongFast/!aabbccdd")
+
+        assert result is not None
+        assert result.device_id == "!aabbccdd"
+        assert result.battery_level == 87
+        assert result.voltage == pytest.approx(4.1)
+        assert result.uptime_seconds == 3600
+        assert result.channel_utilization == pytest.approx(5.2)
+        assert result.air_util_tx == pytest.approx(1.3)
+        assert result.rssi == -85
+        assert result.snr == 7.0
+        assert result.timestamp == datetime(2023, 11, 14, 22, 13, 20, tzinfo=timezone.utc)
+
+    def test_position_type_returns_none(self):
+        """Telemetry parser returns None for position messages."""
+        payload = _make_json_payload(msg_type="position")
+        result = parse_mqtt_json_telemetry(payload)
+        assert result is None
+
+    def test_empty_payload(self):
+        """Returns None for empty payload field."""
+        data = {"type": "telemetry", "from": 0xAABBCCDD, "payload": {}}
+        result = parse_mqtt_json_telemetry(json.dumps(data).encode())
+        assert result is None
+
+    def test_invalid_json(self):
+        """Returns None for non-JSON data."""
+        result = parse_mqtt_json_telemetry(b"not json at all")
+        assert result is None
+
+    def test_partial_fields(self):
+        """Partial telemetry fields are preserved, missing ones are None."""
+        data = {
+            "type": "telemetry",
+            "from": 0xAABBCCDD,
+            "payload": {
+                "battery_level": 42,
+                "time": 1700000000,
+            },
+        }
+        result = parse_mqtt_json_telemetry(json.dumps(data).encode())
+        assert result is not None
+        assert result.device_id == "!aabbccdd"
+        assert result.battery_level == 42
+        assert result.voltage is None
+        assert result.uptime_seconds is None
+        assert result.channel_utilization is None
+        assert result.air_util_tx is None
+
+    def test_from_over_sender(self):
+        """Uses 'from' field for device_id instead of 'sender'."""
+        data = {
+            "type": "telemetry",
+            "from": 0x11223344,
+            "sender": "!aabbccdd",
+            "payload": {"battery_level": 50, "time": 1700000000},
+        }
+        result = parse_mqtt_json_telemetry(json.dumps(data).encode())
+        assert result is not None
+        assert result.device_id == "!11223344"
+
+    def test_no_timestamp_uses_now(self):
+        """When time is absent, timestamp defaults to now."""
+        data = {
+            "type": "telemetry",
+            "from": 0xAABBCCDD,
+            "payload": {"battery_level": 50},
+        }
+        before = datetime.now(tz=timezone.utc)
+        result = parse_mqtt_json_telemetry(json.dumps(data).encode())
+        after = datetime.now(tz=timezone.utc)
+        assert result is not None
+        assert before <= result.timestamp <= after

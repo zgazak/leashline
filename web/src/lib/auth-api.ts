@@ -3,6 +3,7 @@ import type {
   BLEScanResult,
   ConnectionState,
   Coordinate,
+  DeviceTelemetry,
   DogProfile,
   Geofence,
   Pack,
@@ -117,6 +118,8 @@ export function createAuthApi(getToken: () => Promise<string | null>) {
       }),
     getNearbyDevices: () =>
       fetchJSON<{ device_id: string; last_seen: string; lat: number; lon: number; rssi: number | null; snr: number | null }[]>("/devices/nearby"),
+    getLatestTelemetry: () =>
+      fetchJSON<Record<string, DeviceTelemetry>>("/telemetry/latest"),
   };
 }
 

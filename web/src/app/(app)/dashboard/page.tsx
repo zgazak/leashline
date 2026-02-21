@@ -8,6 +8,7 @@ import { pointInPolygon } from "@/lib/geo";
 import { useAlerts } from "@/hooks/useAlerts";
 import { useConnection } from "@/hooks/useConnection";
 import { usePositions } from "@/hooks/usePositions";
+import { useTelemetry } from "@/hooks/useTelemetry";
 import { useBottomSheet } from "@/hooks/useBottomSheet";
 import AlertChips from "@/components/AlertChips";
 import BottomSheet, { type TabId } from "@/components/BottomSheet";
@@ -45,6 +46,7 @@ export default function DashboardPage() {
   );
 
   const positions = usePositions(api);
+  const telemetry = useTelemetry(api);
   const alerts = useAlerts(api);
   const connectionState = useConnection(api);
   const { snapPoint, setSnapPoint, sheetRef, handleProps, getHeight } =
@@ -237,6 +239,7 @@ export default function DashboardPage() {
       <div className="absolute inset-0">
         <Map
           positions={positions}
+          telemetry={telemetry}
           geofences={geofences}
           focusDogId={focusDogId}
           dogNames={dogNames}
@@ -301,6 +304,7 @@ export default function DashboardPage() {
           <LiveTab
             dogs={dogs}
             positions={positions}
+            telemetry={telemetry}
             dogZones={dogZones}
             onFocusDog={handleFocusDog}
           />
@@ -309,6 +313,7 @@ export default function DashboardPage() {
           <DogList
             dogs={dogs}
             positions={positions}
+            telemetry={telemetry}
             geofences={geofences}
             dogZones={dogZones}
             onDogAdded={handleDogAdded}

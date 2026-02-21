@@ -9,6 +9,7 @@ Table schema (single table, e.g. "leashline"):
     PACK#{pack_id}        POSITION#{id}         Track points
     PACK#{pack_id}        ALERT#{id}            Alerts
     PACK#{pack_id}        PUSHSUB#{id}          Push subscriptions
+    PACK#{pack_id}        TELEMETRY#{id}        Device telemetry
     PACK#{pack_id}        #META                 Pack metadata
     PACK#{pack_id}        MEMBER#{user_id}      Pack members
     INVITE#{code}         INVITE#{code}         Pack invites
@@ -324,6 +325,7 @@ class DynamoStorage:
         from engine.models.geofence import Geofence
         from engine.models.position import TrackPoint
 
+        from app.models.telemetry import DeviceTelemetry
         from app.notifications.models import PushSubscription
 
         self.dogs = DynamoTenantRepository(session, config, table_name, "DOG", DogProfile, endpoint_url)
@@ -332,6 +334,7 @@ class DynamoStorage:
         self.positions = DynamoTenantRepository(session, config, table_name, "POSITION", TrackPoint, endpoint_url)
         self.alerts = DynamoTenantRepository(session, config, table_name, "ALERT", Alert, endpoint_url)
         self.push_subscriptions = DynamoTenantRepository(session, config, table_name, "PUSHSUB", PushSubscription, endpoint_url)
+        self.telemetry = DynamoTenantRepository(session, config, table_name, "TELEMETRY", DeviceTelemetry, endpoint_url)
         self.packs = DynamoPackRepository(session, config, table_name, endpoint_url)
         self._session = session
         self._config = config

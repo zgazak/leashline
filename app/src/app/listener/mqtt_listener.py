@@ -10,7 +10,12 @@ from typing import TYPE_CHECKING
 import paho.mqtt.client as mqtt
 
 from app.listener.connection_state import ConnectionState, ConnectionStatus
-from app.listener.mqtt_packet_parser import parse_mqtt_json_packet, parse_mqtt_protobuf_packet
+from app.listener.mqtt_packet_parser import (
+    parse_mqtt_json_packet,
+    parse_mqtt_json_telemetry,
+    parse_mqtt_protobuf_packet,
+    parse_mqtt_protobuf_telemetry,
+)
 
 if TYPE_CHECKING:
     from app.core.events import EventBus
@@ -108,19 +113,28 @@ class MqttListener:
         # Detect format from topic path: /json/ → JSON, /e/ → protobuf
         if "/json/" in topic:
             track_point = parse_mqtt_json_packet(payload, topic)
+            telemetry = None if track_point else parse_mqtt_json_telemetry(payload, topic)
         elif "/e/" in topic:
             track_point = parse_mqtt_protobuf_packet(payload)
+            telemetry = None if track_point else parse_mqtt_protobuf_telemetry(payload)
         else:
             logger.debug("MQTT: unknown topic format: %s", topic)
             return
 
-        if track_point:
-            pack_id = self._extract_pack_id(topic)
-            logger.debug("MQTT: received position from %s (pack=%s)", track_point.device_id, pack_id)
+        pack_id = self._extract_pack_id(topic)
 
+        if track_point:
+            logger.debug("MQTT: received position from %s (pack=%s)", track_point.device_id, pack_id)
             envelope = {"pack_id": pack_id, "data": track_point}
             asyncio.run_coroutine_threadsafe(
                 self._event_bus.publish("positions", envelope),
+                self._loop,
+            )
+        elif telemetry:
+            logger.debug("MQTT: received telemetry from %s (pack=%s)", telemetry.device_id, pack_id)
+            envelope = {"pack_id": pack_id, "data": telemetry}
+            asyncio.run_coroutine_threadsafe(
+                self._event_bus.publish("telemetry", envelope),
                 self._loop,
             )
 

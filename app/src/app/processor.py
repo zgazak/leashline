@@ -110,9 +110,50 @@ async def run_detection_processor(
 
                 alert = detector.evaluate(enriched, geofence)
                 if alert:
+                    # Replace raw dog_id with dog name in the message
+                    from engine.models.alert import Alert as AlertModel
+
+                    friendly_msg = alert.message.replace(dog.id, dog.name)
+                    alert = AlertModel(**{**alert.model_dump(), "message": friendly_msg})
+
                     await storage.alerts.put(alert.id, alert, pack_id)
                     await event_bus.publish("alerts", {"pack_id": pack_id, "data": alert})
                     logger.info("Alert: %s", alert.message)
     except asyncio.CancelledError:
         logger.info("Detection processor stopped")
         event_bus.unsubscribe("positions", queue)
+
+
+async def run_telemetry_processor(
+    event_bus: EventBus,
+    storage: SqliteStorage,
+) -> None:
+    """Read telemetry from the event bus, store latest per device, publish to SSE."""
+    queue = event_bus.subscribe("telemetry")
+
+    logger.info("Telemetry processor started")
+
+    try:
+        while True:
+            message = await queue.get()
+
+            if isinstance(message, dict) and "pack_id" in message:
+                telemetry = message["data"]
+            else:
+                telemetry = message
+
+            # Resolve pack by device→dog ownership
+            pack_id = await storage.find_pack_by_device_id(telemetry.device_id)
+            if pack_id is None:
+                logger.debug("No pack found for device %s (telemetry), skipping", telemetry.device_id)
+                continue
+
+            # Upsert: use device_id as key so we always keep only the latest
+            await storage.telemetry.put(telemetry.device_id, telemetry, pack_id)
+
+            # Publish to SSE subscribers
+            await event_bus.publish("telemetry_sse", {"pack_id": pack_id, "data": telemetry})
+            logger.debug("Telemetry stored for device %s (pack=%s)", telemetry.device_id, pack_id)
+    except asyncio.CancelledError:
+        logger.info("Telemetry processor stopped")
+        event_bus.unsubscribe("telemetry", queue)

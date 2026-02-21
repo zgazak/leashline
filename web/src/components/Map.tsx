@@ -5,11 +5,12 @@ import mapboxgl from "mapbox-gl";
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
-import type { Coordinate, Geofence, TrackPoint } from "@/lib/types";
+import type { Coordinate, DeviceTelemetry, Geofence, TrackPoint } from "@/lib/types";
 import { GEOFENCE_COLORS } from "@/components/GeofenceList";
 
 interface MapProps {
   positions: Record<string, TrackPoint>;
+  telemetry?: Record<string, DeviceTelemetry>;
   geofences: Geofence[];
   focusDogId: string | null;
   dogNames: Record<string, string>;
@@ -30,6 +31,7 @@ function coordsFromFeature(feature: GeoJSON.Feature<GeoJSON.Polygon>): Coordinat
 
 export default function Map({
   positions,
+  telemetry,
   geofences,
   focusDogId,
   dogNames,
@@ -270,11 +272,19 @@ export default function Map({
     // Add/update markers
     for (const [deviceId, tp] of Object.entries(positions)) {
       const name = dogNames[deviceId] || deviceId.slice(-4);
+      const telem = telemetry?.[deviceId];
+      const batteryHtml = telem?.battery_level != null
+        ? `<br/>Battery: ${telem.battery_level}%${telem.voltage != null ? ` (${telem.voltage.toFixed(1)}V)` : ""}`
+        : "";
+      const popupHtml = `<strong>${name}</strong><br/>RSSI: ${tp.rssi ?? "\u2014"} / SNR: ${tp.snr ?? "\u2014"}${batteryHtml}`;
+
       if (markersRef.current[deviceId]) {
         markersRef.current[deviceId].setLngLat([
           tp.reading.lon,
           tp.reading.lat,
         ]);
+        const popup = markersRef.current[deviceId].getPopup();
+        if (popup) popup.setHTML(popupHtml);
       } else {
         const el = document.createElement("div");
         el.className = "dog-marker";
@@ -285,16 +295,14 @@ export default function Map({
         const marker = new mapboxgl.Marker({ element: el })
           .setLngLat([tp.reading.lon, tp.reading.lat])
           .setPopup(
-            new mapboxgl.Popup({ offset: 20 }).setHTML(
-              `<strong>${name}</strong><br/>RSSI: ${tp.rssi ?? "\u2014"} / SNR: ${tp.snr ?? "\u2014"}`,
-            ),
+            new mapboxgl.Popup({ offset: 20 }).setHTML(popupHtml),
           )
           .addTo(map);
         markersRef.current[deviceId] = marker;
       }
     }
 
-  }, [positions, dogNames]);
+  }, [positions, telemetry, dogNames]);
 
   // Auto-zoom to dog positions on first data (~300m view)
   useEffect(() => {

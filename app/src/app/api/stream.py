@@ -71,6 +71,34 @@ async def stream_alerts(
     return EventSourceResponse(event_generator())
 
 
+@router.get("/telemetry")
+async def stream_telemetry(
+    user: UserInfo = Depends(verify_token_param),
+    pack_id: str = Depends(get_pack_id_from_token),
+):
+    """SSE stream of real-time telemetry updates, filtered by pack."""
+    from app.main import get_event_bus
+
+    bus = get_event_bus()
+    queue = bus.subscribe("telemetry_sse")
+
+    async def event_generator():
+        try:
+            while True:
+                envelope = await queue.get()
+                if isinstance(envelope, dict) and "pack_id" in envelope:
+                    if envelope["pack_id"] != pack_id:
+                        continue
+                    data = envelope["data"]
+                else:
+                    data = envelope
+                yield {"event": "telemetry", "data": json.dumps(data.model_dump(), default=str)}
+        except asyncio.CancelledError:
+            bus.unsubscribe("telemetry_sse", queue)
+
+    return EventSourceResponse(event_generator())
+
+
 @router.get("/connection")
 async def stream_connection(
     user: UserInfo = Depends(verify_token_param),

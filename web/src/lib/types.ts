@@ -120,3 +120,16 @@ export interface PackInvite {
   expires_at: string;
   used_by: string | null;
 }
+
+export interface DeviceTelemetry {
+  device_id: string;
+  battery_level: number | null;
+  voltage: number | null;
+  uptime_seconds: number | null;
+  channel_utilization: number | null;
+  air_util_tx: number | null;
+  rssi: number | null;
+  snr: number | null;
+  timestamp: string;
+  received_at: string;
+}
