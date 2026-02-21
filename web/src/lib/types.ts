@@ -110,6 +110,7 @@ export interface PackMember {
   user_id: string;
   role: "owner" | "member";
   joined_at: string;
+  display_name?: string;
 }
 
 export interface PackInvite {
@@ -132,4 +133,12 @@ export interface DeviceTelemetry {
   snr: number | null;
   timestamp: string;
   received_at: string;
+}
+
+export interface NoiseProfile {
+  device_id: string;
+  noise_radius_m: number;
+  sample_count: number;
+  last_updated: string;
+  confidence: number;
 }

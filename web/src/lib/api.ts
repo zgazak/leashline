@@ -5,6 +5,7 @@ import type {
   Coordinate,
   DogProfile,
   Geofence,
+  NoiseProfile,
   SwitchRequest,
   TrackPoint,
 } from "./types";
@@ -88,6 +89,10 @@ function createApi(fetchFn: FetchFn = fetch) {
       }),
     getNearbyDevices: () =>
       fetchJSON<{ device_id: string; last_seen: string; lat: number; lon: number; rssi: number | null; snr: number | null }[]>("/devices/nearby"),
+    getNoiseProfiles: () =>
+      fetchJSON<Record<string, NoiseProfile>>("/noise-profiles/latest"),
+    getDeviceNoiseProfile: (deviceId: string) =>
+      fetchJSON<NoiseProfile | null>(`/noise-profiles/${deviceId}`),
   };
 }
 
@@ -114,6 +119,8 @@ export const getVapidKey = defaultApi.getVapidKey;
 export const subscribePush = defaultApi.subscribePush;
 export const unsubscribePush = defaultApi.unsubscribePush;
 export const getNearbyDevices = defaultApi.getNearbyDevices;
+export const getNoiseProfiles = defaultApi.getNoiseProfiles;
+export const getDeviceNoiseProfile = defaultApi.getDeviceNoiseProfile;
 
 // Public (no auth) helper for invite preview
 const API_URL_EXPORT = API_URL;

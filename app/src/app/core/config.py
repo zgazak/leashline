@@ -30,6 +30,10 @@ class DetectionSettings(BaseModel):
     breach_confirm_s: float = 10.0
     scatter_threshold_m: float = 50.0
     max_history: int = 20
+    noise_aware: bool = False
+    default_noise_radius_m: float = 8.0
+    min_breach_significance: float = 2.0
+    min_escape_coherence: float = 0.4
 
 
 class ClerkConfig(BaseModel):

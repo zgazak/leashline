@@ -50,6 +50,7 @@ async def run_detection_processor(
     """Read positions from the event bus, run escape detection, store results, publish alerts."""
     detector = EscapeDetector(detection_config)
     queue = event_bus.subscribe("positions")
+    _restored_profiles: set[str] = set()
 
     logger.info("Detection processor started")
 
@@ -100,6 +101,14 @@ async def run_detection_processor(
 
             enriched = TrackPoint(**{**track_point.model_dump(), "dog_id": dog.id})
 
+            # Restore noise profile on first encounter (if noise-aware)
+            if detection_config and detection_config.noise_aware:
+                if dog.id not in _restored_profiles:
+                    existing = await storage.noise_profiles.get_for_pack(dog.device_id or dog.id, pack_id)
+                    if existing:
+                        detector.set_noise_profile(dog.id, existing)
+                    _restored_profiles.add(dog.id)
+
             # Check against all active geofences for this dog
             for gf_id in dog.geofence_ids:
                 geofence = await storage.geofences.get_for_pack(gf_id, pack_id)
@@ -119,6 +128,12 @@ async def run_detection_processor(
                     await storage.alerts.put(alert.id, alert, pack_id)
                     await event_bus.publish("alerts", {"pack_id": pack_id, "data": alert})
                     logger.info("Alert: %s", alert.message)
+
+            # Persist updated noise profile (if noise-aware)
+            if detection_config and detection_config.noise_aware:
+                profile = detector.get_noise_profile(dog.id)
+                if profile:
+                    await storage.noise_profiles.put(profile.device_id, profile, pack_id)
     except asyncio.CancelledError:
         logger.info("Detection processor stopped")
         event_bus.unsubscribe("positions", queue)

@@ -172,3 +172,193 @@ class TestEscapeDetector:
         # 6. Returns inside — return detected
         a = det.evaluate(_make_point(35.001, -80.0, 30), FENCE)
         assert a is not None and a.type == AlertType.return_detected
+
+
+class TestNoiseAwareDetection:
+    """Tests for the noise-aware escape detection path."""
+
+    def _noise_config(self, **kwargs) -> DetectionConfig:
+        defaults = {
+            "noise_aware": True,
+            "default_noise_radius_m": 8.0,
+            "scatter_threshold_m": 500.0,
+            "breach_confirm_s": 10.0,
+            "warning_buffer_m": 20.0,
+        }
+        defaults.update(kwargs)
+        return DetectionConfig(**defaults)
+
+    def test_legacy_behavior_when_disabled(self):
+        """When noise_aware=False, behavior is identical to legacy."""
+        det = EscapeDetector(DetectionConfig(noise_aware=False))
+        alert = det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
+        assert alert is not None
+        assert alert.type == AlertType.geofence_breach
+
+    def test_far_breach_always_alerts(self):
+        """Outside > 2× noise radius → always breach, regardless of coherence."""
+        cfg = self._noise_config(default_noise_radius_m=8.0, min_breach_significance=2.0)
+        det = EscapeDetector(cfg)
+
+        # Feed some inside points first for history
+        for i in range(4):
+            det.evaluate(_make_point(35.001, -80.0, i * 15), FENCE)
+
+        # Now go far outside (34.999 is ~111m south of fence edge at 35.000)
+        alert = det.evaluate(_make_point(34.999, -80.0, 60), FENCE)
+        assert alert is not None
+        assert alert.type == AlertType.geofence_breach
+
+    def test_small_breach_no_coherence_suppressed(self):
+        """Just barely outside + no coherent motion → suppressed as GPS noise."""
+        cfg = self._noise_config(default_noise_radius_m=8.0, min_breach_significance=2.0)
+        det = EscapeDetector(cfg)
+
+        # Simulate GPS bouncing near the south boundary (lat=35.000):
+        # zigzag pattern — inside, barely outside, inside, barely outside
+        # This creates low linearity (random walk, not directed motion)
+        det.evaluate(_make_point(35.00005, -80.0, 0), FENCE)   # ~5m inside
+        det.evaluate(_make_point(34.99997, -80.0, 15), FENCE)  # ~3m outside
+        det.evaluate(_make_point(35.00003, -80.0, 30), FENCE)  # ~3m inside
+        det.evaluate(_make_point(34.99998, -80.0, 45), FENCE)  # ~2m outside
+        det.evaluate(_make_point(35.00002, -80.0, 60), FENCE)  # ~2m inside
+
+        # Another bounce outside — small distance, no coherent outward trend
+        alert = det.evaluate(_make_point(34.99997, -80.0, 75), FENCE)
+        assert alert is None  # Suppressed — zigzag = no coherent outward motion
+
+    def test_real_escape_with_coherent_motion(self):
+        """Coherent outward motion just outside fence → breach alert."""
+        cfg = self._noise_config(
+            default_noise_radius_m=8.0,
+            min_breach_significance=100.0,  # Set very high so distance alone won't trigger
+            min_escape_coherence=0.3,
+        )
+        det = EscapeDetector(cfg)
+
+        # Build trajectory heading south (outward from fence)
+        # Start inside, then progressively move south through and past the fence
+        det.evaluate(_make_point(35.0005, -80.0, 0), FENCE)
+        det.evaluate(_make_point(35.0003, -80.0, 15), FENCE)
+        det.evaluate(_make_point(35.0001, -80.0, 30), FENCE)
+
+        # Now outside and continuing south — coherent outward motion
+        alert = det.evaluate(_make_point(34.9998, -80.0, 45), FENCE)
+        assert alert is not None
+        assert alert.type == AlertType.geofence_breach
+
+    def test_escape_confirmed_noise_aware(self):
+        """Full escape sequence with noise-aware mode."""
+        cfg = self._noise_config(breach_confirm_s=10.0)
+        det = EscapeDetector(cfg)
+
+        # Far outside — breach (distance > 2× noise)
+        alert1 = det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
+        assert alert1 is not None
+        assert alert1.type == AlertType.geofence_breach
+
+        # Still far outside 5s later — no escalation yet
+        alert2 = det.evaluate(_make_point(34.999, -80.0, 5), FENCE)
+        assert alert2 is None
+
+        # Still far outside 15s later — escape confirmed
+        alert3 = det.evaluate(_make_point(34.998, -80.0, 15), FENCE)
+        assert alert3 is not None
+        assert alert3.type == AlertType.escape_detected
+
+    def test_return_detected_noise_aware(self):
+        """Return detection works in noise-aware mode."""
+        cfg = self._noise_config()
+        det = EscapeDetector(cfg)
+
+        # Far outside — breach
+        det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
+
+        # Back inside — return
+        alert = det.evaluate(_make_point(35.001, -80.0, 5), FENCE)
+        assert alert is not None
+        assert alert.type == AlertType.return_detected
+
+    def test_noise_profile_injection(self):
+        """Injected noise profile is used for significance check."""
+        from engine.models.noise import NoiseProfile
+
+        cfg = self._noise_config(default_noise_radius_m=1.0, min_breach_significance=2.0)
+        det = EscapeDetector(cfg)
+
+        # Inject a wide noise profile (50m)
+        profile = NoiseProfile(
+            device_id="!aabbccdd",
+            noise_radius_m=50.0,
+            sample_count=100,
+            last_updated=BASE_TIME,
+            confidence=1.0,
+        )
+        det.set_noise_profile("rex", profile)
+
+        # Build zigzag history near boundary so coherence is low
+        det.evaluate(_make_point(35.00005, -80.0, 0), FENCE)
+        det.evaluate(_make_point(34.99997, -80.0, 15), FENCE)
+        det.evaluate(_make_point(35.00003, -80.0, 30), FENCE)
+        det.evaluate(_make_point(34.99998, -80.0, 45), FENCE)
+
+        # ~11m outside — with 50m noise radius, significance = 11/50 < 2 → suppressed
+        # And zigzag history means coherence is low too
+        alert = det.evaluate(_make_point(34.9999, -80.0, 60), FENCE)
+        assert alert is None  # Suppressed: low significance + no coherent motion
+
+    def test_noise_profile_extraction(self):
+        """get_noise_profile returns the current profile."""
+        cfg = self._noise_config()
+        det = EscapeDetector(cfg)
+
+        assert det.get_noise_profile("rex") is None
+
+        from engine.models.noise import NoiseProfile
+
+        profile = NoiseProfile(
+            device_id="!aabbccdd",
+            noise_radius_m=5.0,
+            sample_count=50,
+            last_updated=BASE_TIME,
+            confidence=1.0,
+        )
+        det.set_noise_profile("rex", profile)
+        assert det.get_noise_profile("rex") is profile
+
+    def test_auto_learn_noise_from_stationary(self):
+        """Stationary points auto-update the noise profile."""
+        cfg = self._noise_config(
+            noise_min_stationary_points=4,
+            noise_stationarity_threshold_m=5.0,
+        )
+        det = EscapeDetector(cfg)
+
+        # Feed stationary points (all at same location, well inside fence)
+        for i in range(5):
+            det.evaluate(_make_point(35.001, -80.0, i * 15), FENCE)
+
+        # Should have auto-learned a noise profile
+        profile = det.get_noise_profile("rex")
+        assert profile is not None
+        assert profile.noise_radius_m < 1.0  # Nearly zero scatter
+        assert profile.sample_count >= 4
+
+    def test_inside_behavior_unchanged_noise_aware(self):
+        """Inside the fence, noise-aware mode doesn't change behavior."""
+        cfg = self._noise_config()
+        det = EscapeDetector(cfg)
+
+        # Well inside — no alert
+        alert = det.evaluate(_make_point(35.001, -80.0, 0), FENCE)
+        assert alert is None
+
+    def test_approach_warning_noise_aware(self):
+        """Approach warnings still fire in noise-aware mode."""
+        cfg = self._noise_config(warning_buffer_m=20.0)
+        det = EscapeDetector(cfg)
+
+        # Just inside the south edge
+        alert = det.evaluate(_make_point(35.0001, -80.0, 0), FENCE)
+        assert alert is not None
+        assert alert.type == AlertType.boundary_approach
