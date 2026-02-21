@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { deleteDog } from "@/lib/api";
 import type { DogProfile, Geofence, TrackPoint } from "@/lib/types";
 import AddDogModal from "@/components/AddDogModal";
 import DogGeofenceAssign from "@/components/DogGeofenceAssign";
+import DogSettingsModal from "@/components/DogSettingsModal";
 
 interface DogListProps {
   dogs: DogProfile[];
@@ -35,7 +35,8 @@ export default function DogList({
   onDogDeleted,
   onDogUpdated,
 }: DogListProps) {
-  const [showModal, setShowModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [settingsDogId, setSettingsDogId] = useState<string | null>(null);
   const [assignDogId, setAssignDogId] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
@@ -44,14 +45,7 @@ export default function DogList({
     return () => clearInterval(id);
   }, []);
 
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteDog(id);
-      onDogDeleted(id);
-    } catch {
-      // silently ignore for now
-    }
-  };
+  const settingsDog = dogs.find((d) => d.id === settingsDogId);
 
   return (
     <>
@@ -61,7 +55,7 @@ export default function DogList({
             Dogs
           </h2>
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => setShowAddModal(true)}
             className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded text-lg leading-none"
             title="Add dog"
           >
@@ -99,11 +93,11 @@ export default function DogList({
                     &#9638;
                   </button>
                   <button
-                    onClick={() => handleDelete(dog.id)}
-                    className="text-gray-300 hover:text-red-500 text-xs leading-none sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                    title="Remove dog"
+                    onClick={() => setSettingsDogId(dog.id)}
+                    className="text-gray-300 hover:text-gray-500 text-xs leading-none sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                    title="Dog settings"
                   >
-                    &times;
+                    &#9881;
                   </button>
                 </span>
                 {assignDogId === dog.id && (
@@ -120,10 +114,19 @@ export default function DogList({
         </ul>
       </section>
 
-      {showModal && (
+      {showAddModal && (
         <AddDogModal
-          onClose={() => setShowModal(false)}
+          onClose={() => setShowAddModal(false)}
           onDogAdded={onDogAdded}
+        />
+      )}
+
+      {settingsDog && (
+        <DogSettingsModal
+          dog={settingsDog}
+          onClose={() => setSettingsDogId(null)}
+          onDogUpdated={onDogUpdated}
+          onDogDeleted={onDogDeleted}
         />
       )}
     </>
