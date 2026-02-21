@@ -67,7 +67,7 @@ async def create_pack(
 async def get_my_pack(
     user: UserInfo = Depends(get_current_user),
 ) -> dict:
-    from app.main import get_storage
+    from app.main import get_config, get_storage
 
     storage = get_storage()
     pack_id = await storage.packs.get_user_pack_id(user.user_id)
@@ -79,7 +79,32 @@ async def get_my_pack(
         raise HTTPException(status_code=404, detail="Pack not found")
 
     members = await storage.packs.list_members(pack_id)
-    return {"pack": pack, "members": members}
+
+    # Resolve Clerk user IDs to display names
+    enriched = []
+    auth_cfg = get_config().auth
+    if auth_cfg.enabled and not auth_cfg.dev_mode and auth_cfg.clerk.secret_key:
+        from clerk_backend_api import Clerk
+
+        client = Clerk(bearer_auth=auth_cfg.clerk.secret_key)
+        for m in members:
+            display_name = m.user_id
+            try:
+                clerk_user = await client.users.get_async(user_id=m.user_id)
+                parts = [clerk_user.first_name or "", clerk_user.last_name or ""]
+                full_name = " ".join(p for p in parts if p).strip()
+                if full_name:
+                    display_name = full_name
+                elif clerk_user.email_addresses:
+                    display_name = clerk_user.email_addresses[0].email_address
+            except Exception:
+                pass  # fall back to user_id
+            enriched.append({**m.model_dump(), "display_name": display_name})
+    else:
+        for m in members:
+            enriched.append({**m.model_dump(), "display_name": m.user_id})
+
+    return {"pack": pack, "members": enriched}
 
 
 @router.post("/invite")

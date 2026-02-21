@@ -5,12 +5,21 @@ import { PWAProvider } from "@/components/pwa/pwa-provider";
 import { VersionCheck } from "@/components/pwa/version-check";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://leashline.io"),
   title: {
     default: "Leashline | Dog Escape Detection",
     template: "%s | Leashline",
   },
   description:
     "Real-time dog escape detection using LoRa radio tracking and smart geofencing. Get instant alerts when your dog leaves their safe zone — no cell coverage needed.",
+  openGraph: {
+    siteName: "Leashline",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
 };
 
 export default function RootLayout({

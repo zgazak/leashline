@@ -14,8 +14,15 @@ const TABS: Tab[] = [
   { id: "live", label: "Live" },
   { id: "dogs", label: "Dogs" },
   { id: "zones", label: "Zones" },
-  { id: "settings", label: "\u2699" },
+  { id: "settings", label: "Settings" },
 ];
+
+const TAB_COLORS: Record<TabId, { active: string; bg: string }> = {
+  live: { active: "text-emerald-600 border-emerald-600", bg: "bg-emerald-50/60" },
+  dogs: { active: "text-amber-600 border-amber-600", bg: "bg-amber-50/60" },
+  zones: { active: "text-violet-600 border-violet-600", bg: "bg-violet-50/60" },
+  settings: { active: "text-slate-600 border-slate-600", bg: "bg-slate-50/60" },
+};
 
 interface BottomSheetProps {
   sheetRef: Ref<HTMLDivElement>;
@@ -56,23 +63,26 @@ export default function BottomSheet({
 
       {/* Tab bar */}
       <div className="flex border-b border-gray-200 shrink-0 px-2">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => onTabChange(tab.id)}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab.id
-                ? "text-blue-600 border-b-2 border-blue-600"
-                : "text-gray-500"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {TABS.map((tab) => {
+          const colors = TAB_COLORS[tab.id];
+          return (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? `${colors.active} border-b-2`
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
+      <div className={`flex-1 overflow-y-auto overscroll-contain min-h-0 ${TAB_COLORS[activeTab].bg}`}>
         {children}
       </div>
     </div>

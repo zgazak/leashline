@@ -214,18 +214,6 @@ export default function DashboardPage() {
     [api],
   );
 
-  const handleToggleEnabled = useCallback(
-    async (id: string, enabled: boolean) => {
-      try {
-        const updated = await api.updateGeofence(id, { enabled });
-        setGeofences((prev) => prev.map((g) => (g.id === id ? updated : g)));
-      } catch {
-        // ignore
-      }
-    },
-    [api],
-  );
-
   const handleDrawCancel = useCallback(() => {
     setDrawingMode(false);
     setEditingGeofenceId(null);
@@ -324,10 +312,13 @@ export default function DashboardPage() {
         {activeTab === "zones" && (
           <GeofenceList
             geofences={geofences}
+            dogs={dogs}
             onStartDraw={handleStartDraw}
             onEditGeofence={handleEditGeofence}
             onDeleteGeofence={handleDeleteGeofence}
-            onToggleEnabled={handleToggleEnabled}
+            onGeofenceUpdated={(gf) =>
+              setGeofences((prev) => prev.map((g) => (g.id === gf.id ? gf : g)))
+            }
           />
         )}
         {activeTab === "settings" && (
