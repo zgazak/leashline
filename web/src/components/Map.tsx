@@ -381,16 +381,17 @@ export default function Map({
     const dotSizes = [6, 5, 4, 3];
     const dotOpacities = [0.7, 0.5, 0.35, 0.25];
 
-    for (const [, pts] of Object.entries(trails)) {
+    for (const [deviceId, pts] of Object.entries(trails)) {
       if (pts.length < 2) continue;
-      // Line through all trail points
+      // Start the line from the live position (may be fresher than trails)
+      const live = positions[deviceId];
+      const lineCoords: [number, number][] = [];
+      if (live) lineCoords.push([live.reading.lon, live.reading.lat]);
+      for (const p of pts) lineCoords.push([p.reading.lon, p.reading.lat]);
       lineFeatures.push({
         type: "Feature",
         properties: {},
-        geometry: {
-          type: "LineString",
-          coordinates: pts.map((p) => [p.reading.lon, p.reading.lat]),
-        },
+        geometry: { type: "LineString", coordinates: lineCoords },
       });
       // Dots for older positions (skip index 0 — that's the current marker)
       for (let i = 1; i < pts.length; i++) {
@@ -411,7 +412,7 @@ export default function Map({
 
     if (map.isStyleLoaded()) setData();
     else map.on("style.load", setData);
-  }, [trails]);
+  }, [trails, positions]);
 
   // Update uncertainty circles
   useEffect(() => {
@@ -428,7 +429,7 @@ export default function Map({
       const hdop = tp.reading.hdop ?? 2;
       const fixFactor = Math.min(5, Math.max(1, hdop / 1.5, 6 / sats));
       const elapsedSec = (now - new Date(tp.received_at).getTime()) / 1000;
-      const timeExpansion = Math.max(0, elapsedSec) * 2.0;
+      const timeExpansion = Math.max(0, elapsedSec) * 0.5;
       const radius = Math.min(500, noiseRadius * fixFactor + timeExpansion);
 
       features.push({
