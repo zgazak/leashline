@@ -12,6 +12,7 @@ interface DogListProps {
   telemetry: Record<string, DeviceTelemetry>;
   geofences: Geofence[];
   dogZones: Record<string, string>;
+  onFocusDog: (deviceId: string) => void;
   onDogAdded: (dog: DogProfile) => void;
   onDogDeleted: (id: string) => void;
   onDogUpdated: (dog: DogProfile) => void;
@@ -39,6 +40,7 @@ export default function DogList({
   telemetry,
   geofences,
   dogZones,
+  onFocusDog,
   onDogAdded,
   onDogDeleted,
   onDogUpdated,
@@ -82,12 +84,15 @@ export default function DogList({
                 key={dog.id}
                 className="flex items-center justify-between text-sm group relative"
               >
-                <span className="min-w-0">
+                <button
+                  className="min-w-0 text-left"
+                  onClick={() => dog.device_id && onFocusDog(dog.device_id)}
+                >
                   <span className="font-medium text-gray-800 block">{dog.name}</span>
                   {dogZones[dog.id] && (
                     <span className="text-xs text-gray-400 block truncate">at {dogZones[dog.id]}</span>
                   )}
-                </span>
+                </button>
                 <span className="flex items-center gap-2">
                   {telem?.battery_level != null && (
                     <span className={`text-xs font-medium ${batteryColor(telem.battery_level)}`}>

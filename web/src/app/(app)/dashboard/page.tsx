@@ -32,6 +32,7 @@ export default function DashboardPage() {
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [showPackSettings, setShowPackSettings] = useState(false);
   const [focusDogId, setFocusDogId] = useState<string | null>(null);
+  const [isEscapeTracking, setIsEscapeTracking] = useState(false);
   const [needsPack, setNeedsPack] = useState(false);
   const [ready, setReady] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("live");
@@ -123,6 +124,7 @@ export default function DashboardPage() {
     );
     if (escape && focusDogId !== escape.dog_id) {
       setFocusDogId(escape.dog_id);
+      setIsEscapeTracking(true);
       setSnapPoint("collapsed");
     }
   }, [alerts, focusDogId, setSnapPoint]);
@@ -137,9 +139,11 @@ export default function DashboardPage() {
       const dog = dogs.find((d) => d.device_id === deviceId);
       if (dog) {
         setFocusDogId(dog.id);
+        setIsEscapeTracking(false);
+        setSnapPoint("collapsed");
       }
     },
-    [dogs],
+    [dogs, setSnapPoint],
   );
 
   const handleDogAdded = useCallback((dog: DogProfile) => {
@@ -156,6 +160,7 @@ export default function DashboardPage() {
 
   const handleExitTracking = useCallback(() => {
     setFocusDogId(null);
+    setIsEscapeTracking(false);
   }, []);
 
   const handlePackReady = useCallback(
@@ -242,7 +247,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Escape tracking banner */}
-      {focusDogId && (
+      {isEscapeTracking && focusDogId && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10" style={{ top: "env(safe-area-inset-top, 16px)" }}>
           <div className="bg-red-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-3">
             <span className="animate-pulse font-semibold">
@@ -304,6 +309,7 @@ export default function DashboardPage() {
             telemetry={telemetry}
             geofences={geofences}
             dogZones={dogZones}
+            onFocusDog={handleFocusDog}
             onDogAdded={handleDogAdded}
             onDogDeleted={handleDogDeleted}
             onDogUpdated={handleDogUpdated}

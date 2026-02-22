@@ -14,6 +14,14 @@ function noAuthMiddleware(request: NextRequest) {
 }
 
 const clerkAuth = clerkMiddleware(async (auth, req) => {
+  // Redirect authenticated users from marketing page to dashboard
+  if (req.nextUrl.pathname === "/") {
+    const { userId } = await auth();
+    if (userId) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+  }
+
   if (!isPublicRoute(req)) {
     await auth.protect();
   }

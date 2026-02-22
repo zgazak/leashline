@@ -6,6 +6,7 @@ import type {
   DeviceTelemetry,
   DogProfile,
   Geofence,
+  NoiseProfile,
   Pack,
   PackMember,
   SwitchRequest,
@@ -120,6 +121,10 @@ export function createAuthApi(getToken: () => Promise<string | null>) {
       fetchJSON<{ device_id: string; last_seen: string; lat: number; lon: number; rssi: number | null; snr: number | null }[]>("/devices/nearby"),
     getLatestTelemetry: () =>
       fetchJSON<Record<string, DeviceTelemetry>>("/telemetry/latest"),
+    getNoiseProfiles: () =>
+      fetchJSON<Record<string, NoiseProfile>>("/noise-profiles/latest"),
+    getDeviceNoiseProfile: (deviceId: string) =>
+      fetchJSON<NoiseProfile | null>(`/noise-profiles/${deviceId}`),
   };
 }
 

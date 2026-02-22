@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { DeviceTelemetry, DogProfile, TrackPoint } from "@/lib/types";
+import DogInfoModal from "./DogInfoModal";
 
 interface LiveTabProps {
   dogs: DogProfile[];
@@ -47,6 +48,7 @@ export default function LiveTab({
   onFocusDog,
 }: LiveTabProps) {
   const [, setTick] = useState(0);
+  const [infoDogId, setInfoDogId] = useState<string | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
@@ -61,6 +63,8 @@ export default function LiveTab({
     );
   }
 
+  const infoDog = infoDogId ? dogs.find((d) => d.id === infoDogId) : undefined;
+
   return (
     <div className="p-2 space-y-1">
       {dogs.map((dog) => {
@@ -68,23 +72,27 @@ export default function LiveTab({
         const telem = dog.device_id ? telemetry[dog.device_id] : undefined;
         const zone = dogZones[dog.id];
         return (
-          <button
+          <div
             key={dog.id}
-            onClick={() => dog.device_id && onFocusDog(dog.device_id)}
-            disabled={!dog.device_id}
-            className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
+            className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <span
-              className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusColor(dog, tp, zone)}`}
-            />
-            <span className="flex-1 min-w-0">
-              <span className="font-medium text-gray-900 block text-sm">
-                {dog.name}
+            <button
+              onClick={() => dog.device_id && onFocusDog(dog.device_id)}
+              disabled={!dog.device_id}
+              className="flex items-center gap-3 flex-1 min-w-0 text-left"
+            >
+              <span
+                className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusColor(dog, tp, zone)}`}
+              />
+              <span className="flex-1 min-w-0">
+                <span className="font-medium text-gray-900 block text-sm">
+                  {dog.name}
+                </span>
+                <span className="text-xs text-gray-400 block truncate">
+                  {zone ? `at ${zone}` : dog.geofence_ids.length > 0 ? "outside zone" : "no zone assigned"}
+                </span>
               </span>
-              <span className="text-xs text-gray-400 block truncate">
-                {zone ? `at ${zone}` : dog.geofence_ids.length > 0 ? "outside zone" : "no zone assigned"}
-              </span>
-            </span>
+            </button>
             <span className="flex items-center gap-2 shrink-0">
               {telem?.battery_level != null && (
                 <span className={`text-xs font-medium ${batteryColor(telem.battery_level)}`}>
@@ -94,10 +102,27 @@ export default function LiveTab({
               <span className="text-xs text-gray-400">
                 {tp ? timeAgo(tp.received_at) : "no signal"}
               </span>
+              <button
+                onClick={() => setInfoDogId(dog.id)}
+                className="w-5 h-5 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors text-xs font-serif"
+                title="Dog info"
+              >
+                i
+              </button>
             </span>
-          </button>
+          </div>
         );
       })}
+
+      {infoDog && (
+        <DogInfoModal
+          dog={infoDog}
+          position={infoDog.device_id ? positions[infoDog.device_id] : undefined}
+          telemetry={infoDog.device_id ? telemetry[infoDog.device_id] : undefined}
+          zoneName={dogZones[infoDog.id]}
+          onClose={() => setInfoDogId(null)}
+        />
+      )}
     </div>
   );
 }
