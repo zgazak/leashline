@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import math
+import os
 import statistics
 import sys
 from datetime import datetime, timedelta, timezone
@@ -14,7 +16,6 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.patches import Circle
 
-from app.storage.sqlite import SqliteStorage
 from engine.detection.noise import compute_noise_from_stationary, update_noise_profile
 from engine.geo.distance import haversine
 from engine.models.position import TrackPoint
@@ -93,8 +94,34 @@ def analyze_clusters(clusters: list[list[TrackPoint]]) -> list[dict]:
 # Data loading
 # ---------------------------------------------------------------------------
 
-async def load_data(db_path: str, pack_id: str):
-    storage = await SqliteStorage.create(db_path)
+def _resolve_dynamo_table(args) -> str:
+    """Resolve DynamoDB table name from --table flag or SST_RESOURCE_Table env var."""
+    if args.table:
+        return args.table
+    sst_resource = os.environ.get("SST_RESOURCE_Table")
+    if sst_resource:
+        table = json.loads(sst_resource)["name"]
+        return table
+    print("Error: No table name. Either pass --table or run via:")
+    print("  npx sst shell --stage dev -- uv run python scripts/analyze_gps.py --dynamo ...")
+    sys.exit(1)
+
+
+async def open_storage(args):
+    """Open SQLite or DynamoDB storage based on CLI args."""
+    if args.dynamo:
+        from app.storage.dynamodb import DynamoStorage
+        table = _resolve_dynamo_table(args)
+        region = args.region or "us-west-2"
+        print(f"Connecting to DynamoDB table '{table}' in {region}...")
+        return await DynamoStorage.create(table, region)
+    else:
+        from app.storage.sqlite import SqliteStorage
+        return await SqliteStorage.create(args.db)
+
+
+async def load_data(args, pack_id: str):
+    storage = await open_storage(args)
     try:
         positions = await storage.positions.list_for_pack(pack_id)
         telemetry = await storage.telemetry.list_for_pack(pack_id)
@@ -105,7 +132,7 @@ async def load_data(db_path: str, pack_id: str):
         raise
 
 
-async def save_profile(storage: SqliteStorage, profile, pack_id: str):
+async def save_profile(storage, profile, pack_id: str):
     await storage.noise_profiles.put(profile.device_id, profile, pack_id)
     await storage.close()
 
@@ -353,7 +380,7 @@ def plot_diagnostics(
 # ---------------------------------------------------------------------------
 
 async def async_main(args):
-    positions, telemetry, noise_profiles, storage = await load_data(args.db, args.pack)
+    positions, telemetry, noise_profiles, storage = await load_data(args, args.pack)
 
     # List unique devices if none specified
     device_ids = sorted({p.device_id for p in positions})
@@ -439,10 +466,18 @@ async def async_main(args):
 
 def main():
     parser = argparse.ArgumentParser(description="GPS diagnostic analysis for Leashline")
+    # Storage backend
     parser.add_argument("--db", default="leashline.db", help="SQLite database path (default: leashline.db)")
+    parser.add_argument("--dynamo", action="store_true", help="Use DynamoDB instead of SQLite")
+    parser.add_argument("--table", help="DynamoDB table name (default: leashline)")
+    parser.add_argument("--region", help="AWS region (default: us-west-2)")
+
+    # Query options
     parser.add_argument("--device", help="Device hex ID (omit to list available devices)")
     parser.add_argument("--pack", default="local", help="Pack ID (default: local)")
     parser.add_argument("--hours", type=float, default=24, help="Hours of history to analyze (default: 24)")
+
+    # Output options
     parser.add_argument("--save", metavar="FILE", help="Save plot to file instead of showing (e.g. plots.png)")
     parser.add_argument("--save-profile", action="store_true", help="Write computed noise profile to DB")
     args = parser.parse_args()
