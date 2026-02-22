@@ -53,6 +53,9 @@ export default function DashboardPage() {
   const { snapPoint, setSnapPoint, sheetRef, handleProps, getHeight } =
     useBottomSheet("collapsed");
 
+  // Track which escape alerts the user has dismissed (so auto-detection doesn't re-trigger)
+  const dismissedEscapeIds = useRef<Set<string>>(new Set());
+
   // Track bottom sheet height for alert chips positioning
   const [sheetHeight, setSheetHeight] = useState(0);
   const rafRef = useRef(0);
@@ -120,7 +123,7 @@ export default function DashboardPage() {
   // Auto-detect escape alerts → enter tracking mode + collapse sheet
   useEffect(() => {
     const escape = alerts.find(
-      (a) => a.level === "escape" && !a.acknowledged,
+      (a) => a.level === "escape" && !a.acknowledged && !dismissedEscapeIds.current.has(a.id),
     );
     if (escape && focusDogId !== escape.dog_id) {
       setFocusDogId(escape.dog_id);
@@ -159,9 +162,15 @@ export default function DashboardPage() {
   }, []);
 
   const handleExitTracking = useCallback(() => {
+    // Mark current escape alerts as dismissed so auto-detection doesn't re-trigger
+    for (const a of alerts) {
+      if (a.level === "escape" && !a.acknowledged) {
+        dismissedEscapeIds.current.add(a.id);
+      }
+    }
     setFocusDogId(null);
     setIsEscapeTracking(false);
-  }, []);
+  }, [alerts]);
 
   const handlePackReady = useCallback(
     (_pack: Pack) => {
