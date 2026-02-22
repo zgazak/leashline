@@ -34,6 +34,8 @@ class DetectionSettings(BaseModel):
     default_noise_radius_m: float = 8.0
     min_breach_significance: float = 2.0
     min_escape_coherence: float = 0.4
+    noise_stationarity_threshold_m: float = 30.0
+    noise_min_stationary_points: int = 4
 
 
 class ClerkConfig(BaseModel):

@@ -76,6 +76,8 @@ async def lifespan(app: FastAPI):
         default_noise_radius_m=_config.detection.default_noise_radius_m,
         min_breach_significance=_config.detection.min_breach_significance,
         min_escape_coherence=_config.detection.min_escape_coherence,
+        noise_stationarity_threshold_m=_config.detection.noise_stationarity_threshold_m,
+        noise_min_stationary_points=_config.detection.noise_min_stationary_points,
     )
     processor_task = asyncio.create_task(run_detection_processor(_event_bus, _storage, det_cfg))
     telemetry_task = asyncio.create_task(run_telemetry_processor(_event_bus, _storage))

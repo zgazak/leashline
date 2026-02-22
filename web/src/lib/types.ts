@@ -4,7 +4,7 @@ export interface GpsReading {
   alt: number | null;
   speed: number | null;
   heading: number | null;
-  satellites: number | null;
+  sats: number | null;
   hdop: number | null;
   pdop: number | null;
 }

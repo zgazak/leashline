@@ -442,6 +442,7 @@ class TestNoiseAwareDetection:
             default_noise_radius_m=8.0,
             min_breach_significance=2.0,
             min_sats=6,
+            noise_stationarity_threshold_m=5.0,  # prevent auto-learning from zigzag history
         )
         det = EscapeDetector(cfg)
 

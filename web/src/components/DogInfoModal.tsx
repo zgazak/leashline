@@ -27,6 +27,20 @@ function hdopQuality(hdop: number): { label: string; color: string } {
   return { label: "Poor", color: "text-red-500" };
 }
 
+function rssiQuality(rssi: number): { label: string; color: string } {
+  if (rssi >= -90) return { label: "Strong", color: "text-green-600" };
+  if (rssi >= -110) return { label: "Good", color: "text-green-500" };
+  if (rssi >= -120) return { label: "Weak", color: "text-yellow-500" };
+  return { label: "Very weak", color: "text-red-500" };
+}
+
+function snrQuality(snr: number): { label: string; color: string } {
+  if (snr >= 5) return { label: "Strong", color: "text-green-600" };
+  if (snr >= 0) return { label: "Good", color: "text-green-500" };
+  if (snr >= -5) return { label: "Weak", color: "text-yellow-500" };
+  return { label: "Very weak", color: "text-red-500" };
+}
+
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
@@ -105,14 +119,17 @@ export default function DogInfoModal({
           <Section title="GPS Signal">
             {reading ? (
               <>
-                {reading.satellites != null && (() => {
-                  const q = satsQuality(reading.satellites);
-                  return <Row label="Satellites"><span className={q.color}>{reading.satellites} ({q.label})</span></Row>;
+                {reading.sats != null && (() => {
+                  const q = satsQuality(reading.sats);
+                  return <Row label="Satellites"><span className={q.color}>{reading.sats} ({q.label})</span></Row>;
                 })()}
                 {reading.hdop != null && (() => {
                   const q = hdopQuality(reading.hdop);
                   return <Row label="HDOP"><span className={q.color}>{reading.hdop.toFixed(1)} ({q.label})</span></Row>;
                 })()}
+                {reading.pdop != null && (
+                  <Row label="PDOP">{reading.pdop.toFixed(1)}</Row>
+                )}
                 <Row label="Position">
                   <span className="font-mono text-xs">{reading.lat.toFixed(6)}, {reading.lon.toFixed(6)}</span>
                 </Row>
@@ -122,6 +139,24 @@ export default function DogInfoModal({
               </>
             ) : (
               <p className="text-sm text-gray-400">No GPS data</p>
+            )}
+          </Section>
+
+          {/* LoRa Signal (per-fix from TrackPoint) */}
+          <Section title="LoRa Signal">
+            {position?.rssi != null || position?.snr != null ? (
+              <>
+                {position?.rssi != null && (() => {
+                  const q = rssiQuality(position.rssi);
+                  return <Row label="RSSI"><span className={q.color}>{position.rssi} dBm ({q.label})</span></Row>;
+                })()}
+                {position?.snr != null && (() => {
+                  const q = snrQuality(position.snr);
+                  return <Row label="SNR"><span className={q.color}>{position.snr.toFixed(1)} dB ({q.label})</span></Row>;
+                })()}
+              </>
+            ) : (
+              <p className="text-sm text-gray-400">No LoRa data</p>
             )}
           </Section>
 
@@ -154,14 +189,6 @@ export default function DogInfoModal({
                   <Row label="Battery">
                     {telemetry.battery_level}%
                     {telemetry.voltage != null && ` (${telemetry.voltage.toFixed(2)}V)`}
-                  </Row>
-                )}
-                {(telemetry.rssi != null || telemetry.snr != null) && (
-                  <Row label="LoRa signal">
-                    {[
-                      telemetry.rssi != null ? `${telemetry.rssi} dBm` : null,
-                      telemetry.snr != null ? `${telemetry.snr.toFixed(1)} dB SNR` : null,
-                    ].filter(Boolean).join(" / ")}
                   </Row>
                 )}
                 {telemetry.uptime_seconds != null && (

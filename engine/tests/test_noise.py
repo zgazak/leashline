@@ -76,8 +76,8 @@ class TestDetectStationary:
             _make_point(35.0000, -80.0, 30),
             _make_point(35.0001, -80.0, 45),
         ]
-        # Default 5m threshold should reject
-        assert detect_stationary(points) is False
+        # 5m threshold should reject (~11m displacement)
+        assert detect_stationary(points, max_displacement_m=5.0) is False
         # 15m threshold should accept
         assert detect_stationary(points, max_displacement_m=15.0) is True
 

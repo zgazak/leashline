@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useApi } from "@/lib/api-provider";
-import type { Coordinate, DogProfile, Geofence, Pack } from "@/lib/types";
+import type { Coordinate, DogProfile, Geofence, NoiseProfile, Pack } from "@/lib/types";
 import { pointInPolygon } from "@/lib/geo";
 import { useAlerts } from "@/hooks/useAlerts";
 import { useConnection } from "@/hooks/useConnection";
 import { usePositions } from "@/hooks/usePositions";
+import { usePositionTrails } from "@/hooks/usePositionTrails";
 import { useTelemetry } from "@/hooks/useTelemetry";
 import { useBottomSheet } from "@/hooks/useBottomSheet";
 import AlertChips from "@/components/AlertChips";
@@ -47,9 +48,11 @@ export default function DashboardPage() {
   );
 
   const positions = usePositions(api);
+  const trails = usePositionTrails(api, positions);
   const telemetry = useTelemetry(api);
   const alerts = useAlerts(api);
   const connectionState = useConnection(api);
+  const [noiseProfiles, setNoiseProfiles] = useState<Record<string, NoiseProfile>>({});
   const { snapPoint, setSnapPoint, sheetRef, handleProps, getHeight } =
     useBottomSheet("collapsed");
 
@@ -74,6 +77,19 @@ export default function DashboardPage() {
     observe();
     return () => cancelAnimationFrame(rafRef.current);
   }, [sheetRef]);
+
+  // Poll noise profiles every 30s
+  useEffect(() => {
+    let active = true;
+    const poll = () => {
+      api.getNoiseProfiles().then((data) => {
+        if (active) setNoiseProfiles(data);
+      }).catch(() => {});
+    };
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => { active = false; clearInterval(id); };
+  }, [api]);
 
   useEffect(() => {
     // Try loading dogs — if 403, user needs a pack
@@ -241,6 +257,8 @@ export default function DashboardPage() {
       <div className="absolute inset-0">
         <Map
           positions={positions}
+          trails={trails}
+          noiseProfiles={noiseProfiles}
           telemetry={telemetry}
           geofences={geofences}
           focusDogId={focusDogId}

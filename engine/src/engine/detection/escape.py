@@ -37,7 +37,7 @@ class DetectionConfig(BaseModel, frozen=True):
     default_noise_radius_m: float = Field(default=8.0, description="Fallback noise radius when no profile learned")
     min_breach_significance: float = Field(default=2.0, description="Breach distance must exceed N× noise radius")
     min_escape_coherence: float = Field(default=0.4, description="Linearity threshold for escape motion")
-    noise_stationarity_threshold_m: float = Field(default=5.0, description="Max displacement for stationary detection")
+    noise_stationarity_threshold_m: float = Field(default=30.0, description="Max displacement for stationary detection")
     noise_min_stationary_points: int = Field(default=4, description="Min points for stationary window")
 
     # Per-fix quality scaling

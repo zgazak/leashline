@@ -39,6 +39,8 @@ detection:
   breach_confirm_s: 10.0
   scatter_threshold_m: 50.0
   max_history: 20
+  noise_aware: true
+  noise_stationarity_threshold_m: 30.0
 
 # Auth — Clerk keys overridden by secrets file or CLERK_SECRET_KEY env var
 auth:

@@ -12,7 +12,7 @@ from engine.models.position import TrackPoint
 
 def detect_stationary(
     points: list[TrackPoint],
-    max_displacement_m: float = 5.0,
+    max_displacement_m: float = 30.0,
     min_points: int = 4,
     max_time_span_s: float = 300.0,
 ) -> bool:
