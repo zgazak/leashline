@@ -5,11 +5,14 @@ import mapboxgl from "mapbox-gl";
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
-import type { Coordinate, Geofence, TrackPoint } from "@/lib/types";
+import type { Coordinate, DeviceTelemetry, Geofence, NoiseProfile, TrackPoint } from "@/lib/types";
 import { GEOFENCE_COLORS } from "@/components/GeofenceList";
 
 interface MapProps {
   positions: Record<string, TrackPoint>;
+  trails?: Record<string, TrackPoint[]>;
+  noiseProfiles?: Record<string, NoiseProfile>;
+  telemetry?: Record<string, DeviceTelemetry>;
   geofences: Geofence[];
   focusDogId: string | null;
   dogNames: Record<string, string>;
@@ -18,6 +21,21 @@ interface MapProps {
   onPolygonComplete?: (vertices: Coordinate[]) => void;
   onPolygonUpdated?: (geofenceId: string, vertices: Coordinate[]) => void;
   onDrawCancel?: () => void;
+  onMapInteraction?: () => void;
+  bottomPadding?: number;
+}
+
+/** Generate a GeoJSON polygon approximating a circle. */
+function geoCircle(lat: number, lon: number, radiusMeters: number, steps = 64): GeoJSON.Polygon {
+  const coords: [number, number][] = [];
+  const earthRadius = 6371000;
+  for (let i = 0; i <= steps; i++) {
+    const angle = (2 * Math.PI * i) / steps;
+    const dLat = (radiusMeters * Math.cos(angle)) / earthRadius;
+    const dLon = (radiusMeters * Math.sin(angle)) / (earthRadius * Math.cos((lat * Math.PI) / 180));
+    coords.push([lon + (dLon * 180) / Math.PI, lat + (dLat * 180) / Math.PI]);
+  }
+  return { type: "Polygon", coordinates: [coords] };
 }
 
 function coordsFromFeature(feature: GeoJSON.Feature<GeoJSON.Polygon>): Coordinate[] {
@@ -28,6 +46,9 @@ function coordsFromFeature(feature: GeoJSON.Feature<GeoJSON.Polygon>): Coordinat
 
 export default function Map({
   positions,
+  trails,
+  noiseProfiles,
+  telemetry,
   geofences,
   focusDogId,
   dogNames,
@@ -36,6 +57,8 @@ export default function Map({
   onPolygonComplete,
   onPolygonUpdated,
   onDrawCancel,
+  onMapInteraction,
+  bottomPadding,
 }: MapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -49,6 +72,8 @@ export default function Map({
   onPolygonCompleteRef.current = onPolygonComplete;
   const onPolygonUpdatedRef = useRef(onPolygonUpdated);
   onPolygonUpdatedRef.current = onPolygonUpdated;
+  const onMapInteractionRef = useRef(onMapInteraction);
+  onMapInteractionRef.current = onMapInteraction;
 
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -74,6 +99,60 @@ export default function Map({
     );
 
     mapRef.current = map;
+
+    // Add trail + uncertainty sources/layers once style loads
+    map.on("style.load", () => {
+      // Uncertainty circles (bottom layer)
+      map.addSource("uncertainty-circles", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "uncertainty-fill",
+        type: "fill",
+        source: "uncertainty-circles",
+        paint: { "fill-color": "#3b82f6", "fill-opacity": 0.08 },
+      });
+      map.addLayer({
+        id: "uncertainty-outline",
+        type: "line",
+        source: "uncertainty-circles",
+        paint: { "line-color": "#3b82f6", "line-opacity": 0.3, "line-width": 1.5, "line-dasharray": [4, 3] },
+      });
+
+      // Trail lines
+      map.addSource("trail-lines", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "trail-lines-layer",
+        type: "line",
+        source: "trail-lines",
+        paint: { "line-color": "#ef4444", "line-opacity": 0.4, "line-width": 2 },
+        layout: { "line-cap": "round", "line-join": "round" },
+      });
+
+      // Trail dots
+      map.addSource("trail-dots", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "trail-dots-layer",
+        type: "circle",
+        source: "trail-dots",
+        paint: {
+          "circle-color": "#ef4444",
+          "circle-radius": ["get", "radius"],
+          "circle-opacity": ["get", "opacity"],
+        },
+      });
+    });
+
+    // Collapse bottom sheet on map interaction
+    map.on("dragstart", () => onMapInteractionRef.current?.());
+    map.on("click", () => onMapInteractionRef.current?.());
 
     return () => {
       map.remove();
@@ -260,11 +339,19 @@ export default function Map({
     // Add/update markers
     for (const [deviceId, tp] of Object.entries(positions)) {
       const name = dogNames[deviceId] || deviceId.slice(-4);
+      const telem = telemetry?.[deviceId];
+      const batteryHtml = telem?.battery_level != null
+        ? `<br/>Battery: ${telem.battery_level}%${telem.voltage != null ? ` (${telem.voltage.toFixed(1)}V)` : ""}`
+        : "";
+      const popupHtml = `<strong>${name}</strong><br/>RSSI: ${tp.rssi ?? "\u2014"} / SNR: ${tp.snr ?? "\u2014"}${batteryHtml}`;
+
       if (markersRef.current[deviceId]) {
         markersRef.current[deviceId].setLngLat([
           tp.reading.lon,
           tp.reading.lat,
         ]);
+        const popup = markersRef.current[deviceId].getPopup();
+        if (popup) popup.setHTML(popupHtml);
       } else {
         const el = document.createElement("div");
         el.className = "dog-marker";
@@ -275,16 +362,91 @@ export default function Map({
         const marker = new mapboxgl.Marker({ element: el })
           .setLngLat([tp.reading.lon, tp.reading.lat])
           .setPopup(
-            new mapboxgl.Popup({ offset: 20 }).setHTML(
-              `<strong>${name}</strong><br/>RSSI: ${tp.rssi ?? "\u2014"} / SNR: ${tp.snr ?? "\u2014"}`,
-            ),
+            new mapboxgl.Popup({ offset: 20 }).setHTML(popupHtml),
           )
           .addTo(map);
         markersRef.current[deviceId] = marker;
       }
     }
 
-  }, [positions, dogNames]);
+  }, [positions, telemetry, dogNames]);
+
+  // Update trail lines + dots
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !trails) return;
+
+    const lineFeatures: GeoJSON.Feature[] = [];
+    const dotFeatures: GeoJSON.Feature[] = [];
+    const dotSizes = [6, 5, 4, 3];
+    const dotOpacities = [0.7, 0.5, 0.35, 0.25];
+
+    for (const [deviceId, pts] of Object.entries(trails)) {
+      if (pts.length < 2) continue;
+      // Start the line from the live position (may be fresher than trails)
+      const live = positions[deviceId];
+      const lineCoords: [number, number][] = [];
+      if (live) lineCoords.push([live.reading.lon, live.reading.lat]);
+      for (const p of pts) lineCoords.push([p.reading.lon, p.reading.lat]);
+      lineFeatures.push({
+        type: "Feature",
+        properties: {},
+        geometry: { type: "LineString", coordinates: lineCoords },
+      });
+      // Dots for older positions (skip index 0 — that's the current marker)
+      for (let i = 1; i < pts.length; i++) {
+        dotFeatures.push({
+          type: "Feature",
+          properties: { radius: dotSizes[i - 1] ?? 3, opacity: dotOpacities[i - 1] ?? 0.2 },
+          geometry: { type: "Point", coordinates: [pts[i].reading.lon, pts[i].reading.lat] },
+        });
+      }
+    }
+
+    const setData = () => {
+      const lineSrc = map.getSource("trail-lines") as mapboxgl.GeoJSONSource | undefined;
+      const dotSrc = map.getSource("trail-dots") as mapboxgl.GeoJSONSource | undefined;
+      if (lineSrc) lineSrc.setData({ type: "FeatureCollection", features: lineFeatures });
+      if (dotSrc) dotSrc.setData({ type: "FeatureCollection", features: dotFeatures });
+    };
+
+    if (map.isStyleLoaded()) setData();
+    else map.on("style.load", setData);
+  }, [trails, positions]);
+
+  // Update uncertainty circles
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const features: GeoJSON.Feature[] = [];
+    const now = Date.now();
+
+    for (const [deviceId, tp] of Object.entries(positions)) {
+      const profile = noiseProfiles?.[deviceId];
+      const noiseRadius = profile?.noise_radius_m ?? 8;
+      const sats = tp.reading.sats ?? 4;
+      const hdop = tp.reading.hdop ?? 2;
+      const fixFactor = Math.min(5, Math.max(1, hdop / 1.5, 6 / sats));
+      const elapsedSec = (now - new Date(tp.received_at).getTime()) / 1000;
+      const timeExpansion = Math.max(0, elapsedSec) * 0.5;
+      const radius = Math.min(500, noiseRadius * fixFactor + timeExpansion);
+
+      features.push({
+        type: "Feature",
+        properties: {},
+        geometry: geoCircle(tp.reading.lat, tp.reading.lon, radius),
+      });
+    }
+
+    const setData = () => {
+      const src = map.getSource("uncertainty-circles") as mapboxgl.GeoJSONSource | undefined;
+      if (src) src.setData({ type: "FeatureCollection", features });
+    };
+
+    if (map.isStyleLoaded()) setData();
+    else map.on("style.load", setData);
+  }, [positions, noiseProfiles]);
 
   // Auto-zoom to dog positions on first data (~300m view)
   useEffect(() => {
@@ -331,9 +493,16 @@ export default function Map({
     }
   }, [focusDogId, positions]);
 
+  // Adjust map padding for bottom sheet
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.setPadding({ top: 0, left: 0, right: 0, bottom: bottomPadding ?? 0 });
+  }, [bottomPadding]);
+
   if (!token) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-100 text-gray-500">
+      <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
         <div className="text-center p-8">
           <p className="text-lg font-semibold mb-2">Mapbox token not set</p>
           <p className="text-sm">
@@ -351,5 +520,5 @@ export default function Map({
     );
   }
 
-  return <div ref={containerRef} className="flex-1 w-full h-full" />;
+  return <div ref={containerRef} className="w-full h-full" />;
 }

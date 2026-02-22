@@ -63,8 +63,8 @@ async def lifespan(app: FastAPI):
         from app.storage.sqlite import SqliteStorage
         _storage = await SqliteStorage.create(_config.effective_db_path)
 
-    # Start detection processor
-    from app.processor import run_detection_processor
+    # Start detection and telemetry processors
+    from app.processor import run_detection_processor, run_telemetry_processor
     from engine.detection.escape import DetectionConfig
 
     det_cfg = DetectionConfig(
@@ -72,8 +72,15 @@ async def lifespan(app: FastAPI):
         breach_confirm_s=_config.detection.breach_confirm_s,
         scatter_threshold_m=_config.detection.scatter_threshold_m,
         max_history=_config.detection.max_history,
+        noise_aware=_config.detection.noise_aware,
+        default_noise_radius_m=_config.detection.default_noise_radius_m,
+        min_breach_significance=_config.detection.min_breach_significance,
+        min_escape_coherence=_config.detection.min_escape_coherence,
+        noise_stationarity_threshold_m=_config.detection.noise_stationarity_threshold_m,
+        noise_min_stationary_points=_config.detection.noise_min_stationary_points,
     )
     processor_task = asyncio.create_task(run_detection_processor(_event_bus, _storage, det_cfg))
+    telemetry_task = asyncio.create_task(run_telemetry_processor(_event_bus, _storage))
 
     # Start push notification dispatcher (if enabled)
     if _config.notifications.enabled and _config.notifications.vapid.private_key:
@@ -123,8 +130,13 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     processor_task.cancel()
+    telemetry_task.cancel()
     try:
         await processor_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await telemetry_task
     except asyncio.CancelledError:
         pass
 
@@ -162,7 +174,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    from app.api import alerts, connection, devices, dogs, geofences, notifications, packs, positions, root, stream
+    from app.api import alerts, connection, devices, dogs, geofences, noise_profiles, notifications, packs, positions, root, stream, telemetry
 
     app.include_router(root.router)
     app.include_router(dogs.router)
@@ -174,6 +186,8 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.include_router(connection.router)
     app.include_router(packs.router)
     app.include_router(notifications.router)
+    app.include_router(telemetry.router)
+    app.include_router(noise_profiles.router)
 
     return app
 

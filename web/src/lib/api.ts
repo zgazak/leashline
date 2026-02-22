@@ -5,11 +5,12 @@ import type {
   Coordinate,
   DogProfile,
   Geofence,
+  NoiseProfile,
   SwitchRequest,
   TrackPoint,
 } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 type FetchFn = typeof fetch;
 
@@ -58,8 +59,8 @@ function createApi(fetchFn: FetchFn = fetch) {
       }),
     getLatestPositions: () =>
       fetchJSON<Record<string, TrackPoint>>("/positions/latest"),
-    getDevicePositions: (deviceId: string) =>
-      fetchJSON<TrackPoint[]>(`/positions/${deviceId}`),
+    getDevicePositions: (deviceId: string, limit?: number) =>
+      fetchJSON<TrackPoint[]>(`/positions/${deviceId}${limit ? `?limit=${limit}` : ""}`),
     listAlerts: () => fetchJSON<Alert[]>("/alerts"),
     acknowledgeAlert: (id: string) =>
       fetchJSON<Alert>(`/alerts/${id}/acknowledge`, { method: "POST" }),
@@ -86,6 +87,12 @@ function createApi(fetchFn: FetchFn = fetch) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(subscription),
       }),
+    getNearbyDevices: () =>
+      fetchJSON<{ device_id: string; last_seen: string; lat: number; lon: number; rssi: number | null; snr: number | null }[]>("/devices/nearby"),
+    getNoiseProfiles: () =>
+      fetchJSON<Record<string, NoiseProfile>>("/noise-profiles/latest"),
+    getDeviceNoiseProfile: (deviceId: string) =>
+      fetchJSON<NoiseProfile | null>(`/noise-profiles/${deviceId}`),
   };
 }
 
@@ -111,5 +118,19 @@ export const scanBLE = defaultApi.scanBLE;
 export const getVapidKey = defaultApi.getVapidKey;
 export const subscribePush = defaultApi.subscribePush;
 export const unsubscribePush = defaultApi.unsubscribePush;
+export const getNearbyDevices = defaultApi.getNearbyDevices;
+export const getNoiseProfiles = defaultApi.getNoiseProfiles;
+export const getDeviceNoiseProfile = defaultApi.getDeviceNoiseProfile;
+
+// Public (no auth) helper for invite preview
+const API_URL_EXPORT = API_URL;
+export async function previewInvite(code: string): Promise<{ pack_name: string; expires_at: string }> {
+  const res = await fetch(`${API_URL_EXPORT}/packs/invite/${encodeURIComponent(code)}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status}: ${text}`);
+  }
+  return res.json();
+}
 
 export { createApi };

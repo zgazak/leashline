@@ -1,19 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { deleteDog } from "@/lib/api";
-import type { DogProfile, Geofence, TrackPoint } from "@/lib/types";
+import type { DeviceTelemetry, DogProfile, Geofence, TrackPoint } from "@/lib/types";
 import AddDogModal from "@/components/AddDogModal";
 import DogGeofenceAssign from "@/components/DogGeofenceAssign";
+import DogSettingsModal from "@/components/DogSettingsModal";
 
 interface DogListProps {
   dogs: DogProfile[];
   positions: Record<string, TrackPoint>;
+  telemetry: Record<string, DeviceTelemetry>;
   geofences: Geofence[];
   dogZones: Record<string, string>;
+  onFocusDog: (deviceId: string) => void;
   onDogAdded: (dog: DogProfile) => void;
   onDogDeleted: (id: string) => void;
   onDogUpdated: (dog: DogProfile) => void;
+}
+
+function batteryColor(level: number): string {
+  if (level > 50) return "text-green-500";
+  if (level > 20) return "text-yellow-500";
+  return "text-red-500";
 }
 
 function timeAgo(iso: string): string {
@@ -29,13 +37,16 @@ function timeAgo(iso: string): string {
 export default function DogList({
   dogs,
   positions,
+  telemetry,
   geofences,
   dogZones,
+  onFocusDog,
   onDogAdded,
   onDogDeleted,
   onDogUpdated,
 }: DogListProps) {
-  const [showModal, setShowModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [settingsDogId, setSettingsDogId] = useState<string | null>(null);
   const [assignDogId, setAssignDogId] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
@@ -44,14 +55,7 @@ export default function DogList({
     return () => clearInterval(id);
   }, []);
 
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteDog(id);
-      onDogDeleted(id);
-    } catch {
-      // silently ignore for now
-    }
-  };
+  const settingsDog = dogs.find((d) => d.id === settingsDogId);
 
   return (
     <>
@@ -61,7 +65,7 @@ export default function DogList({
             Dogs
           </h2>
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => setShowAddModal(true)}
             className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded text-lg leading-none"
             title="Add dog"
           >
@@ -74,18 +78,27 @@ export default function DogList({
         <ul className="space-y-2">
           {dogs.map((dog) => {
             const tp = dog.device_id ? positions[dog.device_id] : undefined;
+            const telem = dog.device_id ? telemetry[dog.device_id] : undefined;
             return (
               <li
                 key={dog.id}
                 className="flex items-center justify-between text-sm group relative"
               >
-                <span className="min-w-0">
+                <button
+                  className="min-w-0 text-left"
+                  onClick={() => dog.device_id && onFocusDog(dog.device_id)}
+                >
                   <span className="font-medium text-gray-800 block">{dog.name}</span>
                   {dogZones[dog.id] && (
                     <span className="text-xs text-gray-400 block truncate">at {dogZones[dog.id]}</span>
                   )}
-                </span>
+                </button>
                 <span className="flex items-center gap-2">
+                  {telem?.battery_level != null && (
+                    <span className={`text-xs font-medium ${batteryColor(telem.battery_level)}`}>
+                      {telem.battery_level}%
+                    </span>
+                  )}
                   <span className="text-gray-400 text-xs">
                     {tp ? timeAgo(tp.received_at) : "no signal"}
                   </span>
@@ -93,17 +106,17 @@ export default function DogList({
                     onClick={() =>
                       setAssignDogId(assignDogId === dog.id ? null : dog.id)
                     }
-                    className="text-gray-300 hover:text-blue-500 text-xs leading-none opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="text-gray-300 hover:text-blue-500 text-xs leading-none sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                     title="Assign geofences"
                   >
                     &#9638;
                   </button>
                   <button
-                    onClick={() => handleDelete(dog.id)}
-                    className="text-gray-300 hover:text-red-500 text-xs leading-none opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Remove dog"
+                    onClick={() => setSettingsDogId(dog.id)}
+                    className="text-gray-300 hover:text-gray-500 leading-none sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                    title="Dog settings"
                   >
-                    &times;
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                   </button>
                 </span>
                 {assignDogId === dog.id && (
@@ -120,10 +133,19 @@ export default function DogList({
         </ul>
       </section>
 
-      {showModal && (
+      {showAddModal && (
         <AddDogModal
-          onClose={() => setShowModal(false)}
+          onClose={() => setShowAddModal(false)}
           onDogAdded={onDogAdded}
+        />
+      )}
+
+      {settingsDog && (
+        <DogSettingsModal
+          dog={settingsDog}
+          onClose={() => setSettingsDogId(null)}
+          onDogUpdated={onDogUpdated}
+          onDogDeleted={onDogDeleted}
         />
       )}
     </>

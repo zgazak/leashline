@@ -25,6 +25,25 @@ async def list_devices(
     return await storage.devices.list_for_pack(pack_id)
 
 
+@router.get("/nearby")
+async def nearby_devices(
+    user: UserInfo = Depends(get_current_user),
+) -> list[dict]:
+    """Return unassigned Meshtastic devices seen via MQTT in the last 10 minutes."""
+    from app.main import get_storage
+    from app.processor import get_nearby_devices
+
+    storage = get_storage()
+    all_nearby = get_nearby_devices()
+    # Filter out devices already assigned to a dog in any pack
+    result = []
+    for dev in all_nearby:
+        pack = await storage.find_pack_by_device_id(dev["device_id"])
+        if pack is None:
+            result.append(dev)
+    return result
+
+
 @router.post("/{device_id}/assign")
 async def assign_device(
     device_id: str,

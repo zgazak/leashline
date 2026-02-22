@@ -30,6 +30,12 @@ class DetectionSettings(BaseModel):
     breach_confirm_s: float = 10.0
     scatter_threshold_m: float = 50.0
     max_history: int = 20
+    noise_aware: bool = False
+    default_noise_radius_m: float = 8.0
+    min_breach_significance: float = 2.0
+    min_escape_coherence: float = 0.4
+    noise_stationarity_threshold_m: float = 30.0
+    noise_min_stationary_points: int = 4
 
 
 class ClerkConfig(BaseModel):
@@ -50,7 +56,7 @@ class SqliteStorageConfig(BaseModel):
 
 class DynamoStorageConfig(BaseModel):
     table_prefix: str = Field(default="leashline", description="DynamoDB table name prefix")
-    region: str = Field(default="us-east-1", description="AWS region")
+    region: str = Field(default="us-west-2", description="AWS region")
     endpoint_url: str | None = Field(default=None, description="DynamoDB endpoint URL (for local testing)")
 
 
@@ -151,6 +157,8 @@ def _apply_overrides(config: AppConfig) -> AppConfig:
     # Env var overrides (highest priority)
     if os.environ.get("DYNAMODB_TABLE"):
         dynamo_updates["table_prefix"] = os.environ["DYNAMODB_TABLE"]
+    if os.environ.get("DYNAMODB_REGION") or os.environ.get("AWS_DEFAULT_REGION"):
+        dynamo_updates["region"] = os.environ.get("DYNAMODB_REGION") or os.environ["AWS_DEFAULT_REGION"]
     if os.environ.get("MQTT_BROKER_HOST"):
         mqtt_updates["broker_host"] = os.environ["MQTT_BROKER_HOST"]
     if os.environ.get("MQTT_USERNAME"):

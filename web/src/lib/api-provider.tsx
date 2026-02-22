@@ -16,8 +16,9 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function ClerkApiProvider({ children }: { children: React.ReactNode }) {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
   const api = useMemo(() => createAuthApi(() => getToken()), [getToken]);
+  if (!isLoaded) return null;
   return <ApiContext.Provider value={api}>{children}</ApiContext.Provider>;
 }
 

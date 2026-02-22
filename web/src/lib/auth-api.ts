@@ -3,15 +3,17 @@ import type {
   BLEScanResult,
   ConnectionState,
   Coordinate,
+  DeviceTelemetry,
   DogProfile,
   Geofence,
+  NoiseProfile,
   Pack,
   PackMember,
   SwitchRequest,
   TrackPoint,
 } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 export function createAuthApi(getToken: () => Promise<string | null>) {
   async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
@@ -65,8 +67,8 @@ export function createAuthApi(getToken: () => Promise<string | null>) {
       }),
     getLatestPositions: () =>
       fetchJSON<Record<string, TrackPoint>>("/positions/latest"),
-    getDevicePositions: (deviceId: string) =>
-      fetchJSON<TrackPoint[]>(`/positions/${deviceId}`),
+    getDevicePositions: (deviceId: string, limit?: number) =>
+      fetchJSON<TrackPoint[]>(`/positions/${deviceId}${limit ? `?limit=${limit}` : ""}`),
     listAlerts: () => fetchJSON<Alert[]>("/alerts"),
     acknowledgeAlert: (id: string) =>
       fetchJSON<Alert>(`/alerts/${id}/acknowledge`, { method: "POST" }),
@@ -91,6 +93,8 @@ export function createAuthApi(getToken: () => Promise<string | null>) {
       fetchJSON<{ code: string; expires_at: string }>("/packs/invite", {
         method: "POST",
       }),
+    previewInvite: (code: string) =>
+      fetchJSON<{ pack_name: string; expires_at: string }>(`/packs/invite/${code}`),
     joinPack: (code: string) =>
       fetchJSON<Pack>("/packs/join", {
         method: "POST",
@@ -113,7 +117,14 @@ export function createAuthApi(getToken: () => Promise<string | null>) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(subscription),
       }),
-    getToken,
+    getNearbyDevices: () =>
+      fetchJSON<{ device_id: string; last_seen: string; lat: number; lon: number; rssi: number | null; snr: number | null }[]>("/devices/nearby"),
+    getLatestTelemetry: () =>
+      fetchJSON<Record<string, DeviceTelemetry>>("/telemetry/latest"),
+    getNoiseProfiles: () =>
+      fetchJSON<Record<string, NoiseProfile>>("/noise-profiles/latest"),
+    getDeviceNoiseProfile: (deviceId: string) =>
+      fetchJSON<NoiseProfile | null>(`/noise-profiles/${deviceId}`),
   };
 }
 

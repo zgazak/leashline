@@ -4,7 +4,7 @@ export interface GpsReading {
   alt: number | null;
   speed: number | null;
   heading: number | null;
-  satellites: number | null;
+  sats: number | null;
   hdop: number | null;
   pdop: number | null;
 }
@@ -110,6 +110,7 @@ export interface PackMember {
   user_id: string;
   role: "owner" | "member";
   joined_at: string;
+  display_name?: string;
 }
 
 export interface PackInvite {
@@ -119,4 +120,25 @@ export interface PackInvite {
   created_at: string;
   expires_at: string;
   used_by: string | null;
+}
+
+export interface DeviceTelemetry {
+  device_id: string;
+  battery_level: number | null;
+  voltage: number | null;
+  uptime_seconds: number | null;
+  channel_utilization: number | null;
+  air_util_tx: number | null;
+  rssi: number | null;
+  snr: number | null;
+  timestamp: string;
+  received_at: string;
+}
+
+export interface NoiseProfile {
+  device_id: string;
+  noise_radius_m: number;
+  sample_count: number;
+  last_updated: string;
+  confidence: number;
 }

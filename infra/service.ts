@@ -21,6 +21,7 @@ export const service = new sst.aws.Service("Service", {
     dockerfile: "Dockerfile",
   },
   health: {
+    command: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/')\" || exit 1"],
     path: "/",
     interval: "30 seconds",
   },

@@ -18,6 +18,7 @@ PUSH_ALERT_TYPES: frozenset[AlertType] = frozenset({
     AlertType.escape_detected,
     AlertType.geofence_breach,
     AlertType.signal_lost,
+    AlertType.return_detected,
 })
 
 

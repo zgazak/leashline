@@ -1,27 +1,57 @@
 "use client";
 
-import { useState } from "react";
-import { createDog } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { useApi } from "@/lib/api-provider";
 import type { DogProfile } from "@/lib/types";
+
+interface NearbyDevice {
+  device_id: string;
+  last_seen: string;
+  lat: number;
+  lon: number;
+  rssi: number | null;
+  snr: number | null;
+}
 
 interface AddDogModalProps {
   onClose: () => void;
   onDogAdded: (dog: DogProfile) => void;
 }
 
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ago`;
+}
+
 export default function AddDogModal({ onClose, onDogAdded }: AddDogModalProps) {
+  const api = useApi();
   const [name, setName] = useState("");
   const [deviceId, setDeviceId] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nearbyDevices, setNearbyDevices] = useState<NearbyDevice[]>([]);
+  const [loadingDevices, setLoadingDevices] = useState(true);
+
+  useEffect(() => {
+    api
+      .getNearbyDevices()
+      .then(setNearbyDevices)
+      .catch(() => {})
+      .finally(() => setLoadingDevices(false));
+  }, [api]);
 
   const handleSave = async () => {
     if (!name.trim()) return;
     setSaving(true);
     setError(null);
     try {
-      const dog = await createDog({
+      const dog = await api.createDog({
         name: name.trim(),
         device_id: deviceId.trim() || undefined,
         notes: notes.trim() || undefined,
@@ -63,13 +93,45 @@ export default function AddDogModal({ onClose, onDogAdded }: AddDogModalProps) {
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">
-              Device ID
+              Collar Device
             </label>
+            {nearbyDevices.length > 0 ? (
+              <div className="space-y-1.5">
+                {nearbyDevices.map((d) => (
+                  <button
+                    key={d.device_id}
+                    type="button"
+                    onClick={() =>
+                      setDeviceId(
+                        deviceId === d.device_id ? "" : d.device_id,
+                      )
+                    }
+                    className={`w-full text-left px-2 py-1.5 rounded border text-sm flex items-center justify-between ${
+                      deviceId === d.device_id
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-gray-200 hover:border-gray-300 text-gray-700"
+                    }`}
+                  >
+                    <span className="font-mono text-xs">{d.device_id}</span>
+                    <span className="text-xs text-gray-400">
+                      {timeAgo(d.last_seen)}
+                      {d.rssi != null && ` / ${d.rssi} dBm`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : loadingDevices ? (
+              <p className="text-xs text-gray-400">Scanning...</p>
+            ) : (
+              <p className="text-xs text-gray-400 mb-1">
+                No devices heard recently
+              </p>
+            )}
             <input
               value={deviceId}
               onChange={(e) => setDeviceId(e.target.value)}
-              placeholder="Hex ID (optional, assign later)"
-              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+              placeholder="Or type hex ID manually (e.g. !aabbccdd)"
+              className="w-full border border-gray-300 rounded px-2 py-1 text-sm mt-1.5"
             />
           </div>
           <div>

@@ -66,3 +66,52 @@ def test_alert():
         level=AlertLevel.breach,
     )
     assert a.acknowledged is False
+
+
+def test_noise_profile():
+    from datetime import datetime
+
+    from engine.models.noise import NoiseProfile
+
+    np = NoiseProfile(
+        device_id="!aabbccdd",
+        noise_radius_m=3.5,
+        sample_count=25,
+        last_updated=datetime(2025, 6, 1),
+        confidence=0.5,
+    )
+    assert np.device_id == "!aabbccdd"
+    assert np.noise_radius_m == 3.5
+    assert np.sample_count == 25
+    assert np.confidence == 0.5
+
+
+def test_noise_profile_frozen():
+    from datetime import datetime
+
+    import pytest
+
+    from engine.models.noise import NoiseProfile
+
+    np = NoiseProfile(
+        device_id="!aabbccdd",
+        noise_radius_m=3.5,
+        sample_count=25,
+        last_updated=datetime(2025, 6, 1),
+    )
+    with pytest.raises(Exception):
+        np.noise_radius_m = 5.0  # type: ignore[misc]
+
+
+def test_noise_profile_default_confidence():
+    from datetime import datetime
+
+    from engine.models.noise import NoiseProfile
+
+    np = NoiseProfile(
+        device_id="!aabbccdd",
+        noise_radius_m=3.5,
+        sample_count=25,
+        last_updated=datetime(2025, 6, 1),
+    )
+    assert np.confidence == 0.0

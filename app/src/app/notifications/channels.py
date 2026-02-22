@@ -94,6 +94,8 @@ def _build_payload(alert: Alert) -> str:
         title = "Escape Detected!"
     elif alert.type.value == "geofence_breach":
         title = "Geofence Breach"
+    elif alert.type.value == "return_detected":
+        title = "Back Home"
     elif alert.type.value == "signal_lost":
         title = "Signal Lost"
 

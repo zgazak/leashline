@@ -56,6 +56,16 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
     pack_id TEXT NOT NULL DEFAULT 'local',
     data TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS telemetry (
+    id TEXT PRIMARY KEY,
+    pack_id TEXT NOT NULL DEFAULT 'local',
+    data TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS noise_profiles (
+    id TEXT PRIMARY KEY,
+    pack_id TEXT NOT NULL DEFAULT 'local',
+    data TEXT NOT NULL
+);
 
 CREATE INDEX IF NOT EXISTS idx_dogs_pack ON dogs(pack_id);
 CREATE INDEX IF NOT EXISTS idx_devices_pack ON devices(pack_id);
@@ -63,6 +73,8 @@ CREATE INDEX IF NOT EXISTS idx_geofences_pack ON geofences(pack_id);
 CREATE INDEX IF NOT EXISTS idx_positions_pack ON positions(pack_id);
 CREATE INDEX IF NOT EXISTS idx_alerts_pack ON alerts(pack_id);
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_pack ON push_subscriptions(pack_id);
+CREATE INDEX IF NOT EXISTS idx_telemetry_pack ON telemetry(pack_id);
+CREATE INDEX IF NOT EXISTS idx_noise_profiles_pack ON noise_profiles(pack_id);
 CREATE INDEX IF NOT EXISTS idx_pack_members_user ON pack_members(user_id);
 """
 
@@ -241,8 +253,10 @@ class SqliteStorage:
         from engine.models.alert import Alert
         from engine.models.dog import CollarDevice, DogProfile
         from engine.models.geofence import Geofence
+        from engine.models.noise import NoiseProfile
         from engine.models.position import TrackPoint
 
+        from app.models.telemetry import DeviceTelemetry
         from app.notifications.models import PushSubscription
 
         self.dogs = TenantRepository(db, "dogs", DogProfile)
@@ -251,8 +265,19 @@ class SqliteStorage:
         self.positions = TenantRepository(db, "positions", TrackPoint)
         self.alerts = TenantRepository(db, "alerts", Alert)
         self.push_subscriptions = TenantRepository(db, "push_subscriptions", PushSubscription)
+        self.telemetry = TenantRepository(db, "telemetry", DeviceTelemetry)
+        self.noise_profiles = TenantRepository(db, "noise_profiles", NoiseProfile)
         self.packs = PackRepository(db)
         self._db = db
+
+    async def find_pack_by_device_id(self, device_id: str) -> str | None:
+        """Look up which pack owns a device by searching dog profiles across all packs."""
+        cursor = await self._db.execute(
+            "SELECT pack_id FROM dogs WHERE json_extract(data, '$.device_id') = ?",
+            (device_id,),
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else None
 
     @classmethod
     async def create(cls, db_path: str = "leashline.db") -> SqliteStorage:

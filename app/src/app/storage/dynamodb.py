@@ -9,6 +9,8 @@ Table schema (single table, e.g. "leashline"):
     PACK#{pack_id}        POSITION#{id}         Track points
     PACK#{pack_id}        ALERT#{id}            Alerts
     PACK#{pack_id}        PUSHSUB#{id}          Push subscriptions
+    PACK#{pack_id}        TELEMETRY#{id}        Device telemetry
+    PACK#{pack_id}        NOISEPROFILE#{id}     GPS noise profiles
     PACK#{pack_id}        #META                 Pack metadata
     PACK#{pack_id}        MEMBER#{user_id}      Pack members
     INVITE#{code}         INVITE#{code}         Pack invites
@@ -322,8 +324,10 @@ class DynamoStorage:
         from engine.models.alert import Alert
         from engine.models.dog import CollarDevice, DogProfile
         from engine.models.geofence import Geofence
+        from engine.models.noise import NoiseProfile
         from engine.models.position import TrackPoint
 
+        from app.models.telemetry import DeviceTelemetry
         from app.notifications.models import PushSubscription
 
         self.dogs = DynamoTenantRepository(session, config, table_name, "DOG", DogProfile, endpoint_url)
@@ -332,11 +336,34 @@ class DynamoStorage:
         self.positions = DynamoTenantRepository(session, config, table_name, "POSITION", TrackPoint, endpoint_url)
         self.alerts = DynamoTenantRepository(session, config, table_name, "ALERT", Alert, endpoint_url)
         self.push_subscriptions = DynamoTenantRepository(session, config, table_name, "PUSHSUB", PushSubscription, endpoint_url)
+        self.telemetry = DynamoTenantRepository(session, config, table_name, "TELEMETRY", DeviceTelemetry, endpoint_url)
+        self.noise_profiles = DynamoTenantRepository(session, config, table_name, "NOISEPROFILE", NoiseProfile, endpoint_url)
         self.packs = DynamoPackRepository(session, config, table_name, endpoint_url)
         self._session = session
         self._config = config
         self._table = table_name
         self._endpoint_url = endpoint_url
+
+    async def find_pack_by_device_id(self, device_id: str) -> str | None:
+        """Look up which pack owns a device by scanning dog profiles across all packs."""
+        from engine.models.dog import DogProfile
+
+        async with self._session.client("dynamodb", **_client_kwargs(self._config, self._endpoint_url)) as client:
+            params: dict = {
+                "TableName": self._table,
+                "FilterExpression": "begins_with(SK, :prefix)",
+                "ExpressionAttributeValues": {":prefix": {"S": "DOG#"}},
+            }
+            while True:
+                resp = await client.scan(**params)
+                for item in resp.get("Items", []):
+                    dog = DogProfile.model_validate_json(item["data"]["S"])
+                    if dog.device_id == device_id:
+                        return item["PK"]["S"].removeprefix("PACK#")
+                if "LastEvaluatedKey" not in resp:
+                    break
+                params["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+        return None
 
     @classmethod
     async def create(

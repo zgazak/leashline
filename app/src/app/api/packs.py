@@ -67,7 +67,7 @@ async def create_pack(
 async def get_my_pack(
     user: UserInfo = Depends(get_current_user),
 ) -> dict:
-    from app.main import get_storage
+    from app.main import get_config, get_storage
 
     storage = get_storage()
     pack_id = await storage.packs.get_user_pack_id(user.user_id)
@@ -79,7 +79,32 @@ async def get_my_pack(
         raise HTTPException(status_code=404, detail="Pack not found")
 
     members = await storage.packs.list_members(pack_id)
-    return {"pack": pack, "members": members}
+
+    # Resolve Clerk user IDs to display names
+    enriched = []
+    auth_cfg = get_config().auth
+    if auth_cfg.enabled and not auth_cfg.dev_mode and auth_cfg.clerk.secret_key:
+        from clerk_backend_api import Clerk
+
+        client = Clerk(bearer_auth=auth_cfg.clerk.secret_key)
+        for m in members:
+            display_name = m.user_id
+            try:
+                clerk_user = await client.users.get_async(user_id=m.user_id)
+                parts = [clerk_user.first_name or "", clerk_user.last_name or ""]
+                full_name = " ".join(p for p in parts if p).strip()
+                if full_name:
+                    display_name = full_name
+                elif clerk_user.email_addresses:
+                    display_name = clerk_user.email_addresses[0].email_address
+            except Exception:
+                pass  # fall back to user_id
+            enriched.append({**m.model_dump(), "display_name": display_name})
+    else:
+        for m in members:
+            enriched.append({**m.model_dump(), "display_name": m.user_id})
+
+    return {"pack": pack, "members": enriched}
 
 
 @router.post("/invite")
@@ -105,6 +130,29 @@ async def create_invite(
     await storage.packs.put_invite(invite)
 
     return InviteResponse(code=code, expires_at=invite.expires_at)
+
+
+@router.get("/invite/{code}")
+async def preview_invite(code: str) -> dict:
+    """Public endpoint — preview an invite without auth."""
+    from app.main import get_storage
+
+    storage = get_storage()
+    invite = await storage.packs.get_invite(code)
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invalid invite code")
+
+    if invite.used_by:
+        raise HTTPException(status_code=410, detail="Invite already used")
+
+    if datetime.now(timezone.utc) > invite.expires_at:
+        raise HTTPException(status_code=410, detail="Invite expired")
+
+    pack = await storage.packs.get_pack(invite.pack_id)
+    if not pack:
+        raise HTTPException(status_code=404, detail="Pack not found")
+
+    return {"pack_name": pack.name, "expires_at": invite.expires_at.isoformat()}
 
 
 @router.post("/join")

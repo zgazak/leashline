@@ -10,4 +10,14 @@ body,
 
 body {
   margin: 0;
+  overscroll-behavior: none;
+}
+
+/* Hide scrollbar in alert chip row */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
