@@ -233,6 +233,172 @@ def print_summary(
 # Plotting
 # ---------------------------------------------------------------------------
 
+def _save_or_show(fig, save_path: str | None, label: str):
+    """Save figure to file (inserting label before extension) or show interactively."""
+    fig.tight_layout()
+    if save_path:
+        base, ext = os.path.splitext(save_path)
+        path = f"{base}_{label}{ext}"
+        fig.savefig(path, dpi=150, bbox_inches="tight")
+        print(f"  Saved {path}")
+        plt.close(fig)
+
+
+def plot_scatter(
+    device_id: str,
+    points: list[TrackPoint],
+    noise_radius: float | None,
+    save_path: str | None = None,
+):
+    lats = [p.reading.lat for p in points]
+    lons = [p.reading.lon for p in points]
+    times = [p.received_at for p in points]
+
+    avg_lat = sum(lats) / len(lats)
+    avg_lon = sum(lons) / len(lons)
+
+    x_m = [(lon - avg_lon) * math.cos(math.radians(avg_lat)) * 111_320 for lon in lons]
+    y_m = [(lat - avg_lat) * 110_540 for lat in lats]
+
+    fig, ax = plt.subplots(figsize=(9, 9))
+
+    sc = ax.scatter(x_m, y_m, c=range(len(points)), cmap="viridis", s=18, alpha=0.7)
+    ax.plot(0, 0, "r+", markersize=15, markeredgewidth=2, label="Centroid")
+
+    if noise_radius is not None:
+        circle = Circle((0, 0), noise_radius, fill=False, color="red", linestyle="--", linewidth=1.5,
+                         label=f"Noise radius: {noise_radius:.1f}m")
+        ax.add_patch(circle)
+
+    # Square axes: expand the shorter range to match the longer one
+    pad = 10
+    x_span = max(x_m) - min(x_m) + 2 * pad
+    y_span = max(y_m) - min(y_m) + 2 * pad
+    half = max(x_span, y_span) / 2
+    x_mid = (max(x_m) + min(x_m)) / 2
+    y_mid = (max(y_m) + min(y_m)) / 2
+    ax.set_xlim(x_mid - half, x_mid + half)
+    ax.set_ylim(y_mid - half, y_mid + half)
+    ax.set_aspect("equal")
+
+    ax.set_xlabel("East-West (m)")
+    ax.set_ylabel("North-South (m)")
+    ax.set_title(f"{device_id}  |  {len(points)} pts  |  {times[0]:%m/%d %H:%M}–{times[-1]:%m/%d %H:%M}")
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.3)
+    plt.colorbar(sc, ax=ax, label="Point index (time →)", shrink=0.8)
+
+    _save_or_show(fig, save_path, "scatter")
+
+
+def plot_displacement(
+    points: list[TrackPoint],
+    noise_radius: float | None,
+    save_path: str | None = None,
+):
+    lats = [p.reading.lat for p in points]
+    lons = [p.reading.lon for p in points]
+    times = [p.received_at for p in points]
+
+    avg_lat = sum(lats) / len(lats)
+    avg_lon = sum(lons) / len(lons)
+    dists = [haversine(avg_lat, avg_lon, lat, lon) for lat, lon in zip(lats, lons)]
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+
+    sats = [p.reading.sats if p.reading.sats is not None else 0 for p in points]
+    sc = ax.scatter(times, dists, c=sats, cmap="RdYlGn", s=12, alpha=0.7, vmin=3, vmax=12)
+    plt.colorbar(sc, ax=ax, label="Satellites")
+
+    if noise_radius is not None:
+        ax.axhline(noise_radius, color="red", linestyle="--", linewidth=1, label=f"Noise: {noise_radius:.1f}m")
+        ax.legend(fontsize=9)
+
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Distance from centroid (m)")
+    ax.set_title("Position displacement vs time")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+    fig.autofmt_xdate()
+    ax.grid(True, alpha=0.3)
+
+    _save_or_show(fig, save_path, "displacement")
+
+
+def plot_gps_quality(
+    points: list[TrackPoint],
+    save_path: str | None = None,
+):
+    fig, ax = plt.subplots(figsize=(12, 5))
+
+    sat_vals = [p.reading.sats for p in points if p.reading.sats is not None]
+    sat_times = [p.received_at for p in points if p.reading.sats is not None]
+    hdop_vals = [p.reading.hdop for p in points if p.reading.hdop is not None]
+    hdop_times = [p.received_at for p in points if p.reading.hdop is not None]
+
+    if sat_times:
+        ax.plot(sat_times, sat_vals, "g.-", markersize=3, linewidth=0.8, label="Satellites", alpha=0.8)
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Satellites", color="green")
+    ax.tick_params(axis="y", labelcolor="green")
+
+    ax.axhspan(8, 15, alpha=0.05, color="green", label="Excellent (8+)")
+    ax.axhspan(6, 8, alpha=0.05, color="yellow")
+    ax.axhspan(4, 6, alpha=0.05, color="orange")
+    ax.axhspan(0, 4, alpha=0.08, color="red", label="Poor (<4)")
+
+    if hdop_vals:
+        ax_r = ax.twinx()
+        ax_r.plot(hdop_times, hdop_vals, "o-", color="orange", markersize=2, linewidth=0.8, label="HDOP", alpha=0.8)
+        ax_r.set_ylabel("HDOP", color="orange")
+        ax_r.tick_params(axis="y", labelcolor="orange")
+        ax_r.invert_yaxis()
+
+    ax.set_title("GPS quality vs time")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+    ax.legend(fontsize=9, loc="upper left")
+    ax.grid(True, alpha=0.3)
+
+    _save_or_show(fig, save_path, "gps_quality")
+
+
+def plot_lora_signal(
+    points: list[TrackPoint],
+    save_path: str | None = None,
+):
+    fig, ax = plt.subplots(figsize=(12, 5))
+
+    rssi_vals = [p.rssi for p in points if p.rssi is not None]
+    rssi_times = [p.received_at for p in points if p.rssi is not None]
+    snr_vals = [p.snr for p in points if p.snr is not None]
+    snr_times = [p.received_at for p in points if p.snr is not None]
+
+    if rssi_vals:
+        ax.plot(rssi_times, rssi_vals, "b.-", markersize=3, linewidth=0.8, label="RSSI", alpha=0.8)
+        ax.axhspan(-90, 0, alpha=0.05, color="green", label="Strong")
+        ax.axhspan(-110, -90, alpha=0.05, color="yellow")
+        ax.axhspan(-120, -110, alpha=0.05, color="orange")
+        ax.axhspan(-140, -120, alpha=0.08, color="red", label="Very weak")
+        rssi_pad = 5
+        ax.set_ylim(min(rssi_vals) - rssi_pad, max(max(rssi_vals), -85) + rssi_pad)
+    ax.set_xlabel("Time")
+    ax.set_ylabel("RSSI (dBm)", color="blue")
+    ax.tick_params(axis="y", labelcolor="blue")
+
+    if snr_vals:
+        ax_r = ax.twinx()
+        ax_r.plot(snr_times, snr_vals, ".-", color="purple", markersize=2, linewidth=0.8, label="SNR", alpha=0.8)
+        ax_r.set_ylabel("SNR (dB)", color="purple")
+        ax_r.tick_params(axis="y", labelcolor="purple")
+
+    ax.set_title("LoRa signal vs time")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+    ax.legend(fontsize=9, loc="upper left")
+    ax.grid(True, alpha=0.3)
+
+    _save_or_show(fig, save_path, "lora_signal")
+
+
 def plot_diagnostics(
     device_id: str,
     points: list[TrackPoint],
@@ -245,133 +411,14 @@ def plot_diagnostics(
         print("No points to plot.")
         return
 
-    lats = [p.reading.lat for p in points]
-    lons = [p.reading.lon for p in points]
-    times = [p.received_at for p in points]
-
-    # Centroid
-    avg_lat = sum(lats) / len(lats)
-    avg_lon = sum(lons) / len(lons)
-
-    # Distances from centroid
-    dists = [haversine(avg_lat, avg_lon, lat, lon) for lat, lon in zip(lats, lons)]
-
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-
-    # --- Panel 1: Position scatter ---
-    ax1 = axes[0, 0]
-    # Convert lat/lon offsets to meters for better visualization
-    x_m = [(lon - avg_lon) * math.cos(math.radians(avg_lat)) * 111_320 for lon in lons]
-    y_m = [(lat - avg_lat) * 110_540 for lat in lats]
-
-    sc = ax1.scatter(x_m, y_m, c=range(len(points)), cmap="viridis", s=12, alpha=0.7)
-    ax1.plot(0, 0, "r+", markersize=15, markeredgewidth=2, label="Centroid")
-
-    if noise_radius is not None:
-        circle = Circle((0, 0), noise_radius, fill=False, color="red", linestyle="--", linewidth=1.5,
-                         label=f"Noise radius: {noise_radius:.1f}m")
-        ax1.add_patch(circle)
-
-    ax1.set_xlabel("East-West (m)")
-    ax1.set_ylabel("North-South (m)")
-    ax1.set_title(f"{device_id}  |  {len(points)} pts  |  {times[0]:%m/%d %H:%M}–{times[-1]:%m/%d %H:%M}")
-    ax1.set_aspect("equal")
-    ax1.legend(fontsize=8)
-    ax1.grid(True, alpha=0.3)
-    plt.colorbar(sc, ax=ax1, label="Point index (time →)")
-
-    # --- Panel 2: Displacement vs time ---
-    ax2 = axes[0, 1]
-
-    # Color by GPS quality (sats)
-    sats = [p.reading.sats if p.reading.sats is not None else 0 for p in points]
-    sc2 = ax2.scatter(times, dists, c=sats, cmap="RdYlGn", s=10, alpha=0.7, vmin=3, vmax=12)
-    plt.colorbar(sc2, ax=ax2, label="Satellites")
-
-    if noise_radius is not None:
-        ax2.axhline(noise_radius, color="red", linestyle="--", linewidth=1, label=f"Noise: {noise_radius:.1f}m")
-        ax2.legend(fontsize=8)
-
-    ax2.set_xlabel("Time")
-    ax2.set_ylabel("Distance from centroid (m)")
-    ax2.set_title("Position displacement vs time")
-    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
-    ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
-    fig.autofmt_xdate()
-    ax2.grid(True, alpha=0.3)
-
-    # --- Panel 3: GPS quality vs time ---
-    ax3 = axes[1, 0]
-
-    sat_vals = [p.reading.sats for p in points if p.reading.sats is not None]
-    sat_times = [p.received_at for p in points if p.reading.sats is not None]
-
-    hdop_vals = [p.reading.hdop for p in points if p.reading.hdop is not None]
-    hdop_times = [p.received_at for p in points if p.reading.hdop is not None]
-
-    if sat_times:
-        ax3.plot(sat_times, sat_vals, "g.-", markersize=3, linewidth=0.8, label="Satellites", alpha=0.8)
-    ax3.set_xlabel("Time")
-    ax3.set_ylabel("Satellites", color="green")
-    ax3.tick_params(axis="y", labelcolor="green")
-
-    # Quality bands (background shading)
-    t_min, t_max = times[0], times[-1]
-    ax3.axhspan(8, 15, alpha=0.05, color="green", label="Excellent (8+)")
-    ax3.axhspan(6, 8, alpha=0.05, color="yellow")
-    ax3.axhspan(4, 6, alpha=0.05, color="orange")
-    ax3.axhspan(0, 4, alpha=0.08, color="red", label="Poor (<4)")
-
-    if hdop_vals:
-        ax3r = ax3.twinx()
-        ax3r.plot(hdop_times, hdop_vals, "o-", color="orange", markersize=2, linewidth=0.8, label="HDOP", alpha=0.8)
-        ax3r.set_ylabel("HDOP", color="orange")
-        ax3r.tick_params(axis="y", labelcolor="orange")
-        ax3r.invert_yaxis()
-
-    ax3.set_title("GPS quality vs time")
-    ax3.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
-    ax3.legend(fontsize=8, loc="upper left")
-    ax3.grid(True, alpha=0.3)
-
-    # --- Panel 4: LoRa signal vs time ---
-    ax4 = axes[1, 1]
-
-    rssi_vals = [p.rssi for p in points if p.rssi is not None]
-    rssi_times = [p.received_at for p in points if p.rssi is not None]
-    snr_vals = [p.snr for p in points if p.snr is not None]
-    snr_times = [p.received_at for p in points if p.snr is not None]
-
-    if rssi_vals:
-        ax4.plot(rssi_times, rssi_vals, "b.-", markersize=3, linewidth=0.8, label="RSSI", alpha=0.8)
-        # Signal quality bands (within data range)
-        ax4.axhspan(-90, 0, alpha=0.05, color="green", label="Strong")
-        ax4.axhspan(-110, -90, alpha=0.05, color="yellow")
-        ax4.axhspan(-120, -110, alpha=0.05, color="orange")
-        ax4.axhspan(-140, -120, alpha=0.08, color="red", label="Very weak")
-        rssi_pad = 5
-        ax4.set_ylim(min(rssi_vals) - rssi_pad, max(max(rssi_vals), -85) + rssi_pad)
-    ax4.set_xlabel("Time")
-    ax4.set_ylabel("RSSI (dBm)", color="blue")
-    ax4.tick_params(axis="y", labelcolor="blue")
-
-    if snr_vals:
-        ax4r = ax4.twinx()
-        ax4r.plot(snr_times, snr_vals, ".-", color="purple", markersize=2, linewidth=0.8, label="SNR", alpha=0.8)
-        ax4r.set_ylabel("SNR (dB)", color="purple")
-        ax4r.tick_params(axis="y", labelcolor="purple")
-
-    ax4.set_title("LoRa signal vs time")
-    ax4.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
-    ax4.legend(fontsize=8, loc="upper left")
-    ax4.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-
     if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"\nPlot saved to {save_path}")
-    else:
+        print("\nSaving plots:")
+    plot_scatter(device_id, points, noise_radius, save_path)
+    plot_displacement(points, noise_radius, save_path)
+    plot_gps_quality(points, save_path)
+    plot_lora_signal(points, save_path)
+
+    if not save_path:
         plt.show()
 
 
