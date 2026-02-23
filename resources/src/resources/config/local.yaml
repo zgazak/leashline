@@ -28,7 +28,7 @@ mqtt:
 
 detection:
   warning_buffer_m: 20.0
-  breach_confirm_s: 10.0
+  breach_confirm_s: 90.0
   scatter_threshold_m: 50.0
   max_history: 20
   noise_aware: true

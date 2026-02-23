@@ -25,12 +25,13 @@ interface MapProps {
   bottomPadding?: number;
 }
 
-/** Generate a GeoJSON polygon approximating a circle. */
+/** Generate a GeoJSON polygon approximating a circle (CCW winding per RFC 7946). */
 function geoCircle(lat: number, lon: number, radiusMeters: number, steps = 64): GeoJSON.Polygon {
   const coords: [number, number][] = [];
   const earthRadius = 6371000;
   for (let i = 0; i <= steps; i++) {
-    const angle = (2 * Math.PI * i) / steps;
+    // Negative angle → counter-clockwise (N→W→S→E) as required for GeoJSON outer rings
+    const angle = -(2 * Math.PI * i) / steps;
     const dLat = (radiusMeters * Math.cos(angle)) / earthRadius;
     const dLon = (radiusMeters * Math.sin(angle)) / (earthRadius * Math.cos((lat * Math.PI) / 180));
     coords.push([lon + (dLon * 180) / Math.PI, lat + (dLat * 180) / Math.PI]);
@@ -321,7 +322,7 @@ export default function Map({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [drawingMode, editingGeofenceId, onDrawCancel]);
 
-  // Update dog markers
+  // Update dog markers + uncertainty circles together so they always use the same position
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -336,7 +337,10 @@ export default function Map({
       }
     }
 
-    // Add/update markers
+    // Add/update markers + build uncertainty circle features
+    const circleFeatures: GeoJSON.Feature[] = [];
+    const now = Date.now();
+
     for (const [deviceId, tp] of Object.entries(positions)) {
       const name = dogNames[deviceId] || deviceId.slice(-4);
       const telem = telemetry?.[deviceId];
@@ -345,6 +349,7 @@ export default function Map({
         : "";
       const popupHtml = `<strong>${name}</strong><br/>RSSI: ${tp.rssi ?? "\u2014"} / SNR: ${tp.snr ?? "\u2014"}${batteryHtml}`;
 
+      // Update or create marker
       if (markersRef.current[deviceId]) {
         markersRef.current[deviceId].setLngLat([
           tp.reading.lon,
@@ -367,9 +372,34 @@ export default function Map({
           .addTo(map);
         markersRef.current[deviceId] = marker;
       }
+
+      // Build uncertainty circle at the exact same position
+      const profile = noiseProfiles?.[deviceId];
+      const noiseRadius = profile?.noise_radius_m ?? 8;
+      const sats = tp.reading.sats ?? 4;
+      const hdop = tp.reading.hdop ?? 2;
+      const fixFactor = Math.min(5, Math.max(1, hdop / 1.5, 6 / sats));
+      const elapsedSec = (now - new Date(tp.received_at).getTime()) / 1000;
+      const timeExpansion = Math.max(0, elapsedSec) * 0.5;
+      const radius = Math.min(500, noiseRadius * fixFactor + timeExpansion);
+
+      circleFeatures.push({
+        type: "Feature",
+        properties: {},
+        geometry: geoCircle(tp.reading.lat, tp.reading.lon, radius),
+      });
     }
 
-  }, [positions, telemetry, dogNames]);
+    // Update uncertainty circles source
+    const setCircleData = () => {
+      const src = map.getSource("uncertainty-circles") as mapboxgl.GeoJSONSource | undefined;
+      if (src) src.setData({ type: "FeatureCollection", features: circleFeatures });
+    };
+
+    if (map.isStyleLoaded()) setCircleData();
+    else map.on("style.load", setCircleData);
+
+  }, [positions, telemetry, dogNames, noiseProfiles]);
 
   // Update trail lines + dots
   useEffect(() => {
@@ -413,40 +443,6 @@ export default function Map({
     if (map.isStyleLoaded()) setData();
     else map.on("style.load", setData);
   }, [trails, positions]);
-
-  // Update uncertainty circles
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    const features: GeoJSON.Feature[] = [];
-    const now = Date.now();
-
-    for (const [deviceId, tp] of Object.entries(positions)) {
-      const profile = noiseProfiles?.[deviceId];
-      const noiseRadius = profile?.noise_radius_m ?? 8;
-      const sats = tp.reading.sats ?? 4;
-      const hdop = tp.reading.hdop ?? 2;
-      const fixFactor = Math.min(5, Math.max(1, hdop / 1.5, 6 / sats));
-      const elapsedSec = (now - new Date(tp.received_at).getTime()) / 1000;
-      const timeExpansion = Math.max(0, elapsedSec) * 0.5;
-      const radius = Math.min(500, noiseRadius * fixFactor + timeExpansion);
-
-      features.push({
-        type: "Feature",
-        properties: {},
-        geometry: geoCircle(tp.reading.lat, tp.reading.lon, radius),
-      });
-    }
-
-    const setData = () => {
-      const src = map.getSource("uncertainty-circles") as mapboxgl.GeoJSONSource | undefined;
-      if (src) src.setData({ type: "FeatureCollection", features });
-    };
-
-    if (map.isStyleLoaded()) setData();
-    else map.on("style.load", setData);
-  }, [positions, noiseProfiles]);
 
   // Auto-zoom to dog positions on first data (~300m view)
   useEffect(() => {

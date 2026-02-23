@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import csv
 import json
 import math
 import os
@@ -423,6 +424,65 @@ def plot_diagnostics(
 
 
 # ---------------------------------------------------------------------------
+# CSV export
+# ---------------------------------------------------------------------------
+
+def export_csv(points: list[TrackPoint], telemetry_pts: list, path: str):
+    """Write all position + telemetry data to a CSV file."""
+    # Build telemetry lookup by (device_id, closest timestamp)
+    telem_by_time = {}
+    for t in telemetry_pts:
+        telem_by_time[t.received_at] = t
+
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "device_id", "dog_id", "received_at",
+            "lat", "lon", "alt", "speed", "heading",
+            "sats", "pdop", "hdop", "gps_timestamp",
+            "rssi", "snr",
+            "telem_battery", "telem_voltage", "telem_rssi", "telem_snr",
+        ])
+        for p in points:
+            r = p.reading
+            # Find closest telemetry within 60s
+            telem = _find_nearest_telemetry(telemetry_pts, p.received_at)
+            writer.writerow([
+                p.device_id,
+                p.dog_id or "",
+                p.received_at.isoformat(),
+                r.lat,
+                r.lon,
+                r.alt if r.alt is not None else "",
+                r.speed if r.speed is not None else "",
+                r.heading if r.heading is not None else "",
+                r.sats if r.sats is not None else "",
+                r.pdop if r.pdop is not None else "",
+                r.hdop if r.hdop is not None else "",
+                r.timestamp.isoformat(),
+                p.rssi if p.rssi is not None else "",
+                p.snr if p.snr is not None else "",
+                telem.battery_level if telem and telem.battery_level is not None else "",
+                telem.voltage if telem and telem.voltage is not None else "",
+                telem.rssi if telem and telem.rssi is not None else "",
+                telem.snr if telem and telem.snr is not None else "",
+            ])
+    print(f"Exported {len(points)} rows to {path}")
+
+
+def _find_nearest_telemetry(telemetry_pts: list, target: datetime, max_delta_s: float = 60.0):
+    """Find the telemetry record closest in time to target, within max_delta_s."""
+    best = None
+    best_delta = max_delta_s
+    for t in telemetry_pts:
+        delta = abs((t.received_at - target).total_seconds())
+        if delta < best_delta:
+            best = t
+            best_delta = delta
+    return best
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -458,6 +518,12 @@ async def async_main(args):
     )
 
     print(f"Loaded {len(points)} positions, {len(telemetry_pts)} telemetry records")
+
+    # CSV export — dump and exit
+    if args.csv:
+        export_csv(points, telemetry_pts, args.csv)
+        await storage.close()
+        return
 
     if len(points) < 2:
         print("Not enough points for analysis.")
@@ -525,6 +591,7 @@ def main():
     parser.add_argument("--hours", type=float, default=24, help="Hours of history to analyze (default: 24)")
 
     # Output options
+    parser.add_argument("--csv", metavar="FILE", help="Export positions to CSV and exit (e.g. data.csv)")
     parser.add_argument("--save", metavar="FILE", help="Save plot to file instead of showing (e.g. plots.png)")
     parser.add_argument("--save-profile", action="store_true", help="Write computed noise profile to DB")
     args = parser.parse_args()
