@@ -80,6 +80,7 @@ clean: ## Clean build artifacts, caches, logs, and virtual environment
 	rm -rf logs/*.log
 	rm -rf logs/*.log.*
 	rm -f coverage-*.xml junit-*.xml
+	find . -name 'sst.pyi' -delete
 
 ###################
 # Help           #
