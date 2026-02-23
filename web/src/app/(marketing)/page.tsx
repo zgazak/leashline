@@ -3,7 +3,7 @@ import Link from "next/link";
 import AuthHeroCTA from "@/components/AuthHeroCTA";
 import FeatureHighlight from "@/components/marketing/FeatureHighlight";
 import FAQAccordion from "@/components/marketing/FAQAccordion";
-import { JsonLd, softwareAppJsonLd } from "@/lib/structured-data";
+import { JsonLd, softwareAppJsonLd, faqJsonLd, productJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "Leashline | Dog Escape Detection — No Cell, No Subscription",
@@ -15,6 +15,7 @@ export const metadata: Metadata = {
       "LoRa radio dog tracking with smart geofencing. No cell service, no subscriptions. Instant escape alerts.",
     type: "website",
   },
+  alternates: { canonical: "/" },
 };
 
 const faqItems = [
@@ -49,6 +50,8 @@ export default function LandingPage() {
   return (
     <>
       <JsonLd data={softwareAppJsonLd()} />
+      <JsonLd data={productJsonLd()} />
+      <JsonLd data={faqJsonLd(faqItems)} />
 
       {/* Hero */}
       <section className="bg-gradient-to-b from-blue-50 to-white py-20 sm:py-28">

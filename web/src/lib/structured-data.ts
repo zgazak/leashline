@@ -20,6 +20,47 @@ export function organizationJsonLd() {
     logo: `${BASE_URL}/icon-512.png`,
     description:
       "Real-time dog escape detection using LoRa radio tracking and smart geofencing.",
+    sameAs: [],
+  };
+}
+
+export function webSiteJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Leashline",
+    url: BASE_URL,
+    description:
+      "Dog escape detection using LoRa radio tracking and smart geofencing. No cell service, no subscriptions.",
+    publisher: {
+      "@type": "Organization",
+      name: "Leashline",
+      url: BASE_URL,
+    },
+  };
+}
+
+export function productJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: "Leashline Dog Escape Detection System",
+    description:
+      "Real-time dog escape detection using LoRa radio tracking and smart geofencing. Works without cell service. No monthly fees.",
+    brand: {
+      "@type": "Brand",
+      name: "Leashline",
+    },
+    category: "Pet GPS Trackers",
+    url: BASE_URL,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+      description:
+        "Free software. Hardware sold separately (~$50–80 one-time cost for LoRa GPS collar and base station).",
+      availability: "https://schema.org/InStock",
+    },
   };
 }
 

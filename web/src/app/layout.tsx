@@ -20,6 +20,19 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
   },
+  alternates: {
+    canonical: "/",
+  },
+  keywords: [
+    "dog GPS tracker",
+    "dog escape detection",
+    "LoRa dog tracker",
+    "no subscription dog tracker",
+    "dog tracker without cell service",
+    "Meshtastic dog tracker",
+    "geofence dog tracker",
+    "dog tracking no monthly fee",
+  ],
 };
 
 export default function RootLayout({

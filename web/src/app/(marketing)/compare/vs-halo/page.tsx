@@ -6,6 +6,7 @@ import ComparisonTable from "@/components/marketing/ComparisonTable";
 import FeatureHighlight from "@/components/marketing/FeatureHighlight";
 import FAQAccordion from "@/components/marketing/FAQAccordion";
 import CTABanner from "@/components/marketing/CTABanner";
+import { JsonLd, faqJsonLd } from "@/lib/structured-data";
 
 const halo = competitors.find((c) => c.slug === "halo")!;
 
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
     description:
       "Halo costs $599+ plus $10–20/month. Leashline costs $50–80 with zero subscriptions. Both offer polygon geofencing.",
   },
+  alternates: { canonical: "/compare/vs-halo" },
 };
 
 const faqItems = [
@@ -46,6 +48,7 @@ const faqItems = [
 export default function VsHaloPage() {
   return (
     <>
+      <JsonLd data={faqJsonLd(faqItems)} />
       <section className="bg-gradient-to-b from-blue-50 to-white py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <Breadcrumbs

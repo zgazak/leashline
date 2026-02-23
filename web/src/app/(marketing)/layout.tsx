@@ -1,6 +1,6 @@
 import Link from "next/link";
 import AuthNav from "@/components/AuthNav";
-import { JsonLd, organizationJsonLd } from "@/lib/structured-data";
+import { JsonLd, organizationJsonLd, webSiteJsonLd } from "@/lib/structured-data";
 
 export default function MarketingLayout({
   children,
@@ -10,6 +10,7 @@ export default function MarketingLayout({
   return (
     <div className="min-h-screen flex flex-col">
       <JsonLd data={organizationJsonLd()} />
+      <JsonLd data={webSiteJsonLd()} />
 
       <header className="border-b border-gray-200 bg-white">
         <nav className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">

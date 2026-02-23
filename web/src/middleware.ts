@@ -7,6 +7,12 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/join(.*)",
+  "/how-it-works",
+  "/compare(.*)",
+  "/no-subscription-dog-tracker",
+  "/dog-tracker-without-cell-service",
+  "/sitemap.xml",
+  "/robots.txt",
 ]);
 
 function noAuthMiddleware(request: NextRequest) {
