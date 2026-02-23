@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 // __GENERATED__ — version injected by scripts/inject-sw-version.mjs at build time
-const UI_VERSION = "0.4.12";
+const UI_VERSION = "1.0.0";
 
 export function VersionCheck() {
   useEffect(() => {
