@@ -20,3 +20,4 @@ class DetectionStatus(BaseModel, frozen=True):
     breach_needed: int = 3
     noise_suppressed: bool = False
     last_evaluated: datetime | None = None
+    last_filtered_at: datetime | None = None

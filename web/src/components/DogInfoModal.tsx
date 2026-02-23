@@ -213,6 +213,21 @@ export default function DogInfoModal({
           <Section title="Detection">
             {detectionStatus ? (
               <>
+                {/* Active filtering indicator */}
+                {(() => {
+                  if (!detectionStatus.last_filtered_at || !position) return null;
+                  const filteredAge = Date.now() - new Date(detectionStatus.last_filtered_at).getTime();
+                  const posAge = Date.now() - new Date(position.received_at).getTime();
+                  if (filteredAge < 60_000 && filteredAge < posAge) {
+                    return (
+                      <div className="rounded-md px-3 py-1.5 mb-2 bg-yellow-50 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />
+                        <span className="text-xs text-yellow-700">Collar live, filtering poor positions</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 <Row label="Fixes filtered">
                   {detectionStatus.altitude_rejected + detectionStatus.jump_rejected} of{" "}
                   {detectionStatus.fixes_evaluated + detectionStatus.altitude_rejected + detectionStatus.jump_rejected}

@@ -18,6 +18,7 @@ async def latest_positions(
 ) -> dict[str, TrackPoint]:
     """Return the latest position for each known device."""
     from app.main import get_storage
+    from app.processor import get_latest_good_positions
 
     storage = get_storage()
     all_positions = await storage.positions.list_for_pack(pack_id)
@@ -25,6 +26,13 @@ async def latest_positions(
     for tp in all_positions:
         if tp.device_id not in latest or tp.received_at > latest[tp.device_id].received_at:
             latest[tp.device_id] = tp
+
+    # Overlay with last-known-good positions from the processor.
+    # This ensures filtered (rejected) points don't move the map marker.
+    good = get_latest_good_positions()
+    for device_id, tp in good.items():
+        latest[device_id] = tp
+
     return latest
 
 

@@ -69,6 +69,9 @@ class DogState:
         self.jump_rejected: int = 0
         self.fixes_evaluated: int = 0
         self.noise_suppressed: bool = False
+        # Per-point filter tracking
+        self.last_point_filtered: bool = False
+        self.last_filtered_at: datetime | None = None
 
 
 class EscapeDetector:
@@ -101,6 +104,11 @@ class EscapeDetector:
         state = self._get_state(dog_id)
         state.noise_profile = profile
 
+    def was_last_point_filtered(self, dog_id: str) -> bool:
+        """Return whether the last point for this dog was filtered (rejected)."""
+        state = self._states.get(dog_id)
+        return state.last_point_filtered if state else False
+
     def get_detection_status(self, dog_id: str) -> DetectionStatus | None:
         """Snapshot current detection state for a dog (for diagnostics UI)."""
         state = self._states.get(dog_id)
@@ -118,6 +126,7 @@ class EscapeDetector:
             breach_needed=self.config.breach_confirm_n,
             noise_suppressed=state.noise_suppressed,
             last_evaluated=last_point.reading.timestamp if last_point else None,
+            last_filtered_at=state.last_filtered_at,
         )
 
     def get_all_detection_statuses(self) -> dict[str, DetectionStatus]:
@@ -138,13 +147,20 @@ class EscapeDetector:
         if self.config.noise_aware and state.recent_points:
             if is_anomalous_jump(state.recent_points[-1], point, self.config.max_dog_speed_mps):
                 state.jump_rejected += 1
+                state.last_point_filtered = True
+                state.last_filtered_at = point.reading.timestamp
                 return None
 
         # Reject altitude anomalies — don't even add to history
         if self.config.noise_aware and self.config.altitude_gate_m > 0 and state.recent_points:
             if is_altitude_anomaly(state.recent_points, point, self.config.altitude_gate_m):
                 state.altitude_rejected += 1
+                state.last_point_filtered = True
+                state.last_filtered_at = point.reading.timestamp
                 return None
+
+        # Point passed filters
+        state.last_point_filtered = False
 
         # Update history
         state.recent_points.append(point)

@@ -154,4 +154,5 @@ export interface DetectionStatus {
   breach_needed: number;
   noise_suppressed: boolean;
   last_evaluated: string | null;
+  last_filtered_at: string | null;
 }

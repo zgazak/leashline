@@ -98,6 +98,13 @@ export default function LiveTab({
         const tp = dog.device_id ? positions[dog.device_id] : undefined;
         const telem = dog.device_id ? telemetry[dog.device_id] : undefined;
         const zone = dogZones[dog.id];
+        const ds = detectionStatus[dog.id];
+        const isFiltering = (() => {
+          if (!ds?.last_filtered_at || !tp) return false;
+          const filteredAge = Date.now() - new Date(ds.last_filtered_at).getTime();
+          const posAge = Date.now() - new Date(tp.received_at).getTime();
+          return filteredAge < 60_000 && filteredAge < posAge;
+        })();
         return (
           <div
             key={dog.id}
@@ -138,8 +145,14 @@ export default function LiveTab({
                   {telem.battery_level}%
                 </span>
               )}
+              {isFiltering && (
+                <span
+                  className="w-2 h-2 rounded-full shrink-0 bg-yellow-400"
+                  title="Filtering poor positions"
+                />
+              )}
               {(() => {
-                if (!tp) return null;
+                if (!tp || isFiltering) return null;
                 const qi = assessFixQuality(tp);
                 if (qi.quality === "good" || qi.quality === "unknown") return null;
                 return (
