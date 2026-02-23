@@ -69,6 +69,8 @@ export function createAuthApi(getToken: () => Promise<string | null>) {
       fetchJSON<Record<string, TrackPoint>>("/positions/latest"),
     getDevicePositions: (deviceId: string, limit?: number) =>
       fetchJSON<TrackPoint[]>(`/positions/${deviceId}${limit ? `?limit=${limit}` : ""}`),
+    getPositionHistory: (date: string) =>
+      fetchJSON<TrackPoint[]>(`/positions/history?date=${date}`),
     listAlerts: () => fetchJSON<Alert[]>("/alerts"),
     acknowledgeAlert: (id: string) =>
       fetchJSON<Alert>(`/alerts/${id}/acknowledge`, { method: "POST" }),

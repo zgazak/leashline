@@ -61,6 +61,8 @@ function createApi(fetchFn: FetchFn = fetch) {
       fetchJSON<Record<string, TrackPoint>>("/positions/latest"),
     getDevicePositions: (deviceId: string, limit?: number) =>
       fetchJSON<TrackPoint[]>(`/positions/${deviceId}${limit ? `?limit=${limit}` : ""}`),
+    getPositionHistory: (date: string) =>
+      fetchJSON<TrackPoint[]>(`/positions/history?date=${date}`),
     listAlerts: () => fetchJSON<Alert[]>("/alerts"),
     acknowledgeAlert: (id: string) =>
       fetchJSON<Alert>(`/alerts/${id}/acknowledge`, { method: "POST" }),
@@ -110,6 +112,7 @@ export const deleteGeofence = defaultApi.deleteGeofence;
 export const updateDog = defaultApi.updateDog;
 export const getLatestPositions = defaultApi.getLatestPositions;
 export const getDevicePositions = defaultApi.getDevicePositions;
+export const getPositionHistory = defaultApi.getPositionHistory;
 export const listAlerts = defaultApi.listAlerts;
 export const acknowledgeAlert = defaultApi.acknowledgeAlert;
 export const getConnectionStatus = defaultApi.getConnectionStatus;

@@ -6,6 +6,7 @@ from engine.detection.noise import (
     compute_noise_from_stationary,
     detect_stationary,
     fix_uncertainty_factor,
+    is_altitude_anomaly,
     is_anomalous_jump,
     update_noise_profile,
 )
@@ -20,6 +21,7 @@ def _make_point(
     lon: float,
     seconds_offset: float = 0,
     *,
+    alt: float | None = None,
     hdop: float | None = None,
     pdop: float | None = None,
     sats: int | None = None,
@@ -28,7 +30,7 @@ def _make_point(
     return TrackPoint(
         device_id="!aabbccdd",
         dog_id="rex",
-        reading=GpsReading(lat=lat, lon=lon, timestamp=ts, hdop=hdop, pdop=pdop, sats=sats),
+        reading=GpsReading(lat=lat, lon=lon, alt=alt, timestamp=ts, hdop=hdop, pdop=pdop, sats=sats),
         received_at=ts,
     )
 
@@ -275,3 +277,55 @@ class TestIsAnomalousJump:
         p2 = _make_point(35.001, -80.0, 3)
         # ~37 m/s, but threshold raised to 50
         assert is_anomalous_jump(p1, p2, max_speed_mps=50.0) is False
+
+
+class TestAltitudeAnomaly:
+    def _history(self, n: int = 6, alt: float = 100.0) -> list[TrackPoint]:
+        """Build N points at a consistent altitude."""
+        return [_make_point(35.0, -80.0, i * 15, alt=alt) for i in range(n)]
+
+    def test_normal_altitude(self):
+        """Current altitude near the median → not anomalous."""
+        history = self._history(6, alt=100.0)
+        current = _make_point(35.0, -80.0, 100, alt=105.0)
+        assert is_altitude_anomaly(history, current, max_deviation_m=50.0) is False
+
+    def test_large_deviation(self):
+        """100m above the median → anomalous."""
+        history = self._history(6, alt=100.0)
+        current = _make_point(35.0, -80.0, 100, alt=200.0)
+        assert is_altitude_anomaly(history, current, max_deviation_m=50.0) is True
+
+    def test_alt_none_returns_false(self):
+        """Current alt=None → not anomalous (no penalty for missing data)."""
+        history = self._history(6, alt=100.0)
+        current = _make_point(35.0, -80.0, 100)  # alt=None
+        assert is_altitude_anomaly(history, current, max_deviation_m=50.0) is False
+
+    def test_insufficient_history(self):
+        """Fewer than min_history points with altitude → not anomalous."""
+        history = self._history(3, alt=100.0)  # only 3 < default 5
+        current = _make_point(35.0, -80.0, 100, alt=200.0)
+        assert is_altitude_anomaly(history, current, max_deviation_m=50.0, min_history=5) is False
+
+    def test_exactly_at_threshold(self):
+        """Deviation exactly at threshold → not anomalous (uses strict >)."""
+        history = self._history(6, alt=100.0)
+        current = _make_point(35.0, -80.0, 100, alt=150.0)  # exactly 50m above median
+        assert is_altitude_anomaly(history, current, max_deviation_m=50.0) is False
+
+    def test_history_with_none_alts_filtered(self):
+        """Points without altitude in history are ignored, only those with alt count."""
+        # 3 with alt, 3 without — only 3 count toward min_history=5
+        history = [
+            _make_point(35.0, -80.0, 0, alt=100.0),
+            _make_point(35.0, -80.0, 15),
+            _make_point(35.0, -80.0, 30, alt=100.0),
+            _make_point(35.0, -80.0, 45),
+            _make_point(35.0, -80.0, 60, alt=100.0),
+            _make_point(35.0, -80.0, 75),
+        ]
+        current = _make_point(35.0, -80.0, 100, alt=200.0)
+        assert is_altitude_anomaly(history, current, max_deviation_m=50.0, min_history=5) is False
+        # But with min_history=3 it would trigger
+        assert is_altitude_anomaly(history, current, max_deviation_m=50.0, min_history=3) is True

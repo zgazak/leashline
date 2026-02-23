@@ -3,7 +3,7 @@
 import type { ReactNode, Ref } from "react";
 import type { SnapPoint } from "@/hooks/useBottomSheet";
 
-export type TabId = "live" | "dogs" | "zones" | "settings";
+export type TabId = "live" | "history" | "zones" | "settings";
 
 interface Tab {
   id: TabId;
@@ -12,14 +12,14 @@ interface Tab {
 
 const TABS: Tab[] = [
   { id: "live", label: "Live" },
-  { id: "dogs", label: "Dogs" },
+  { id: "history", label: "History" },
   { id: "zones", label: "Zones" },
   { id: "settings", label: "Settings" },
 ];
 
 const TAB_COLORS: Record<TabId, { active: string; bg: string }> = {
   live: { active: "text-emerald-600 border-emerald-600", bg: "bg-emerald-50/60" },
-  dogs: { active: "text-amber-600 border-amber-600", bg: "bg-amber-50/60" },
+  history: { active: "text-sky-600 border-sky-600", bg: "bg-sky-50/60" },
   zones: { active: "text-violet-600 border-violet-600", bg: "bg-violet-50/60" },
   settings: { active: "text-slate-600 border-slate-600", bg: "bg-slate-50/60" },
 };

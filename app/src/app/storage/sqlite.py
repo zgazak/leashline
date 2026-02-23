@@ -71,6 +71,8 @@ CREATE INDEX IF NOT EXISTS idx_dogs_pack ON dogs(pack_id);
 CREATE INDEX IF NOT EXISTS idx_devices_pack ON devices(pack_id);
 CREATE INDEX IF NOT EXISTS idx_geofences_pack ON geofences(pack_id);
 CREATE INDEX IF NOT EXISTS idx_positions_pack ON positions(pack_id);
+CREATE INDEX IF NOT EXISTS idx_positions_received_at
+  ON positions(pack_id, json_extract(data, '$.received_at'));
 CREATE INDEX IF NOT EXISTS idx_alerts_pack ON alerts(pack_id);
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_pack ON push_subscriptions(pack_id);
 CREATE INDEX IF NOT EXISTS idx_telemetry_pack ON telemetry(pack_id);
@@ -269,6 +271,22 @@ class SqliteStorage:
         self.noise_profiles = TenantRepository(db, "noise_profiles", NoiseProfile)
         self.packs = PackRepository(db)
         self._db = db
+
+    async def list_positions_for_date(
+        self, pack_id: str, start: str, end: str
+    ) -> list:
+        """Return all positions for a pack between start and end ISO timestamps."""
+        from engine.models.position import TrackPoint
+
+        cursor = await self._db.execute(
+            "SELECT data FROM positions WHERE pack_id = ? "
+            "AND json_extract(data, '$.received_at') >= ? "
+            "AND json_extract(data, '$.received_at') < ? "
+            "ORDER BY json_extract(data, '$.received_at')",
+            (pack_id, start, end),
+        )
+        rows = await cursor.fetchall()
+        return [TrackPoint.model_validate_json(row[0]) for row in rows]
 
     async def find_pack_by_device_id(self, device_id: str) -> str | None:
         """Look up which pack owns a device by searching dog profiles across all packs."""
