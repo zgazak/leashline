@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { DeviceTelemetry, DogProfile, Geofence, TrackPoint } from "@/lib/types";
+import type { DetectionStatus, DeviceTelemetry, DogProfile, Geofence, TrackPoint } from "@/lib/types";
 import { assessFixQuality } from "@/lib/gps-quality";
 import AddDogModal from "@/components/AddDogModal";
 import DogInfoModal from "@/components/DogInfoModal";
@@ -11,6 +11,7 @@ interface LiveTabProps {
   dogs: DogProfile[];
   positions: Record<string, TrackPoint>;
   telemetry: Record<string, DeviceTelemetry>;
+  detectionStatus: Record<string, DetectionStatus>;
   geofences: Geofence[];
   dogZones: Record<string, string>;
   onFocusDog: (deviceId: string) => void;
@@ -50,6 +51,7 @@ export default function LiveTab({
   dogs,
   positions,
   telemetry,
+  detectionStatus,
   geofences,
   dogZones,
   onFocusDog,
@@ -175,6 +177,7 @@ export default function LiveTab({
           position={infoDog.device_id ? positions[infoDog.device_id] : undefined}
           telemetry={infoDog.device_id ? telemetry[infoDog.device_id] : undefined}
           zoneName={dogZones[infoDog.id]}
+          detectionStatus={detectionStatus[infoDog.id]}
           onClose={() => setInfoDogId(null)}
         />
       )}

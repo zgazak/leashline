@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useApi } from "@/lib/api-provider";
-import type { DeviceTelemetry, DogProfile, NoiseProfile, TrackPoint } from "@/lib/types";
+import type { DetectionStatus, DeviceTelemetry, DogProfile, NoiseProfile, TrackPoint } from "@/lib/types";
 import { assessFixQuality } from "@/lib/gps-quality";
 
 interface DogInfoModalProps {
@@ -10,6 +10,7 @@ interface DogInfoModalProps {
   position: TrackPoint | undefined;
   telemetry: DeviceTelemetry | undefined;
   zoneName: string | undefined;
+  detectionStatus: DetectionStatus | undefined;
   onClose: () => void;
 }
 
@@ -84,6 +85,7 @@ export default function DogInfoModal({
   position,
   telemetry,
   zoneName,
+  detectionStatus,
   onClose,
 }: DogInfoModalProps) {
   const api = useApi();
@@ -204,6 +206,36 @@ export default function DogInfoModal({
                 <Row label="Noise radius">{noiseProfile.noise_radius_m.toFixed(1)}m</Row>
                 <Row label="Samples">{noiseProfile.sample_count}</Row>
               </>
+            )}
+          </Section>
+
+          {/* Detection diagnostics */}
+          <Section title="Detection">
+            {detectionStatus ? (
+              <>
+                <Row label="Fixes filtered">
+                  {detectionStatus.altitude_rejected + detectionStatus.jump_rejected} of{" "}
+                  {detectionStatus.fixes_evaluated + detectionStatus.altitude_rejected + detectionStatus.jump_rejected}
+                  <span className="text-gray-400 text-xs ml-1">
+                    (alt: {detectionStatus.altitude_rejected}, jump: {detectionStatus.jump_rejected})
+                  </span>
+                </Row>
+                <Row label="Breach window">
+                  {detectionStatus.breach_count}/{detectionStatus.breach_window.length} outside
+                  <span className="text-gray-400 text-xs ml-1">
+                    ({detectionStatus.breach_needed} needed)
+                  </span>
+                </Row>
+                <Row label="Noise suppression">
+                  {detectionStatus.noise_suppressed ? (
+                    <span className="text-yellow-500">Active</span>
+                  ) : (
+                    <span className="text-gray-400">&mdash;</span>
+                  )}
+                </Row>
+              </>
+            ) : (
+              <p className="text-sm text-gray-400">Waiting for data</p>
             )}
           </Section>
 

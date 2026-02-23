@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 # discover and claim an unassigned collar heard via MQTT.
 _recent_devices: dict[str, dict] = {}
 
+# Module-level reference to the active detector (set by run_detection_processor)
+_detector: EscapeDetector | None = None
+
 # How long to keep a device in the "nearby" list (seconds)
 _DEVICE_TTL_S = 600
 
@@ -42,13 +45,20 @@ def get_nearby_devices() -> list[dict]:
     return result
 
 
+def get_detector() -> EscapeDetector | None:
+    """Return the active escape detector (for diagnostics endpoints)."""
+    return _detector
+
+
 async def run_detection_processor(
     event_bus: EventBus,
     storage: SqliteStorage,
     detection_config: DetectionConfig | None = None,
 ) -> None:
     """Read positions from the event bus, run escape detection, store results, publish alerts."""
+    global _detector
     detector = EscapeDetector(detection_config)
+    _detector = detector
     queue = event_bus.subscribe("positions")
     _restored_profiles: set[str] = set()
 
@@ -134,6 +144,11 @@ async def run_detection_processor(
                 profile = detector.get_noise_profile(dog.id)
                 if profile:
                     await storage.noise_profiles.put(profile.device_id, profile, pack_id)
+
+            # Publish detection status snapshot for diagnostics UI
+            status = detector.get_detection_status(dog.id)
+            if status:
+                await event_bus.publish("detection_status", {"pack_id": pack_id, "data": status})
     except asyncio.CancelledError:
         logger.info("Detection processor stopped")
         event_bus.unsubscribe("positions", queue)

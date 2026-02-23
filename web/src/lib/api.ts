@@ -3,6 +3,7 @@ import type {
   BLEScanResult,
   ConnectionState,
   Coordinate,
+  DetectionStatus,
   DogProfile,
   Geofence,
   NoiseProfile,
@@ -95,6 +96,8 @@ function createApi(fetchFn: FetchFn = fetch) {
       fetchJSON<Record<string, NoiseProfile>>("/noise-profiles/latest"),
     getDeviceNoiseProfile: (deviceId: string) =>
       fetchJSON<NoiseProfile | null>(`/noise-profiles/${deviceId}`),
+    getDetectionStatus: () =>
+      fetchJSON<Record<string, DetectionStatus>>("/detection/status"),
   };
 }
 
@@ -124,6 +127,7 @@ export const unsubscribePush = defaultApi.unsubscribePush;
 export const getNearbyDevices = defaultApi.getNearbyDevices;
 export const getNoiseProfiles = defaultApi.getNoiseProfiles;
 export const getDeviceNoiseProfile = defaultApi.getDeviceNoiseProfile;
+export const getDetectionStatus = defaultApi.getDetectionStatus;
 
 // Public (no auth) helper for invite preview
 const API_URL_EXPORT = API_URL;

@@ -3,6 +3,7 @@ import type {
   BLEScanResult,
   ConnectionState,
   Coordinate,
+  DetectionStatus,
   DeviceTelemetry,
   DogProfile,
   Geofence,
@@ -127,6 +128,8 @@ export function createAuthApi(getToken: () => Promise<string | null>) {
       fetchJSON<Record<string, NoiseProfile>>("/noise-profiles/latest"),
     getDeviceNoiseProfile: (deviceId: string) =>
       fetchJSON<NoiseProfile | null>(`/noise-profiles/${deviceId}`),
+    getDetectionStatus: () =>
+      fetchJSON<Record<string, DetectionStatus>>("/detection/status"),
   };
 }
 

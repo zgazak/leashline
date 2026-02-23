@@ -174,7 +174,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    from app.api import alerts, connection, devices, dogs, geofences, noise_profiles, notifications, packs, positions, root, stream, telemetry
+    from app.api import alerts, connection, detection, devices, dogs, geofences, noise_profiles, notifications, packs, positions, root, stream, telemetry
 
     app.include_router(root.router)
     app.include_router(dogs.router)
@@ -188,6 +188,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.include_router(notifications.router)
     app.include_router(telemetry.router)
     app.include_router(noise_profiles.router)
+    app.include_router(detection.router)
 
     return app
 

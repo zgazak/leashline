@@ -142,3 +142,16 @@ export interface NoiseProfile {
   last_updated: string;
   confidence: number;
 }
+
+export interface DetectionStatus {
+  device_id: string;
+  dog_id: string | null;
+  altitude_rejected: number;
+  jump_rejected: number;
+  fixes_evaluated: number;
+  breach_window: boolean[];
+  breach_count: number;
+  breach_needed: number;
+  noise_suppressed: boolean;
+  last_evaluated: string | null;
+}

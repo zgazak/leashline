@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Api } from "@/lib/auth-api";
 import type { TrackPoint } from "@/lib/types";
 
@@ -11,12 +11,13 @@ export function usePositionTrails(
   positions: Record<string, TrackPoint>,
 ) {
   const [trails, setTrails] = useState<Record<string, TrackPoint[]>>({});
+  const deviceKey = useMemo(() => Object.keys(positions).sort().join(","), [positions]);
 
   useEffect(() => {
     let active = true;
+    const deviceIds = deviceKey ? deviceKey.split(",") : [];
 
     const poll = async () => {
-      const deviceIds = Object.keys(positions);
       if (deviceIds.length === 0) return;
 
       const results: Record<string, TrackPoint[]> = {};
@@ -40,7 +41,7 @@ export function usePositionTrails(
       active = false;
       clearInterval(id);
     };
-  }, [api, Object.keys(positions).sort().join(",")]);
+  }, [api, deviceKey]);
 
   return trails;
 }

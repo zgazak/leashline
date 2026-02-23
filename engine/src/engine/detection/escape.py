@@ -20,6 +20,7 @@ from engine.detection.noise import (
 from engine.detection.scatter import compute_scatter
 from engine.geo.boundary import distance_to_nearest_boundary
 from engine.models.alert import Alert, AlertLevel, AlertType
+from engine.models.detection_status import DetectionStatus
 from engine.models.geofence import Geofence
 from engine.models.noise import NoiseProfile
 from engine.models.position import TrackPoint
@@ -63,6 +64,11 @@ class DogState:
         self.noise_profile: NoiseProfile | None = None
         self.boundary_distances: list[float] = []
         self.breach_window: list[bool] = []
+        # Detection diagnostics counters
+        self.altitude_rejected: int = 0
+        self.jump_rejected: int = 0
+        self.fixes_evaluated: int = 0
+        self.noise_suppressed: bool = False
 
 
 class EscapeDetector:
@@ -95,6 +101,34 @@ class EscapeDetector:
         state = self._get_state(dog_id)
         state.noise_profile = profile
 
+    def get_detection_status(self, dog_id: str) -> DetectionStatus | None:
+        """Snapshot current detection state for a dog (for diagnostics UI)."""
+        state = self._states.get(dog_id)
+        if state is None:
+            return None
+        last_point = state.recent_points[-1] if state.recent_points else None
+        return DetectionStatus(
+            device_id=last_point.device_id if last_point else "",
+            dog_id=dog_id,
+            altitude_rejected=state.altitude_rejected,
+            jump_rejected=state.jump_rejected,
+            fixes_evaluated=state.fixes_evaluated,
+            breach_window=list(state.breach_window),
+            breach_count=sum(state.breach_window),
+            breach_needed=self.config.breach_confirm_n,
+            noise_suppressed=state.noise_suppressed,
+            last_evaluated=last_point.reading.timestamp if last_point else None,
+        )
+
+    def get_all_detection_statuses(self) -> dict[str, DetectionStatus]:
+        """Snapshot detection state for all tracked dogs."""
+        result = {}
+        for dog_id in self._states:
+            status = self.get_detection_status(dog_id)
+            if status is not None:
+                result[dog_id] = status
+        return result
+
     def evaluate(self, point: TrackPoint, geofence: Geofence) -> Alert | None:
         """Evaluate a new position against a geofence. Returns an Alert on state transition."""
         dog_id = point.dog_id or point.device_id
@@ -103,17 +137,21 @@ class EscapeDetector:
         # Reject anomalous jumps (GPS teleports) — don't even add to history
         if self.config.noise_aware and state.recent_points:
             if is_anomalous_jump(state.recent_points[-1], point, self.config.max_dog_speed_mps):
+                state.jump_rejected += 1
                 return None
 
         # Reject altitude anomalies — don't even add to history
         if self.config.noise_aware and self.config.altitude_gate_m > 0 and state.recent_points:
             if is_altitude_anomaly(state.recent_points, point, self.config.altitude_gate_m):
+                state.altitude_rejected += 1
                 return None
 
         # Update history
         state.recent_points.append(point)
         if len(state.recent_points) > self.config.max_history:
             state.recent_points = state.recent_points[-self.config.max_history :]
+        state.fixes_evaluated += 1
+        state.noise_suppressed = False  # reset; set True only on coherence suppression
 
         # Check scatter — if GPS is too noisy, skip detection
         scatter = compute_scatter(state.recent_points)
@@ -336,6 +374,7 @@ class EscapeDetector:
                 return None
 
         # Suppress: small distance + no coherent outward motion = likely GPS noise
+        state.noise_suppressed = True
         return None
 
     def _try_update_noise_profile(

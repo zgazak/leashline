@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useApi } from "@/lib/api-provider";
-import type { Coordinate, DogProfile, Geofence, NoiseProfile, Pack } from "@/lib/types";
+import type { Coordinate, DetectionStatus, DogProfile, Geofence, NoiseProfile, Pack } from "@/lib/types";
 import { pointInPolygon } from "@/lib/geo";
 import { useAlerts } from "@/hooks/useAlerts";
 import { useConnection } from "@/hooks/useConnection";
@@ -56,6 +56,7 @@ export default function DashboardPage() {
   const connectionState = useConnection(api);
   const historyPlayback = useHistoryPlayback();
   const [noiseProfiles, setNoiseProfiles] = useState<Record<string, NoiseProfile>>({});
+  const [detectionStatus, setDetectionStatus] = useState<Record<string, DetectionStatus>>({});
   const { snapPoint, setSnapPoint, sheetRef, handleProps, getHeight } =
     useBottomSheet("collapsed");
 
@@ -91,6 +92,19 @@ export default function DashboardPage() {
     };
     poll();
     const id = setInterval(poll, 30_000);
+    return () => { active = false; clearInterval(id); };
+  }, [api]);
+
+  // Poll detection status every 10s
+  useEffect(() => {
+    let active = true;
+    const poll = () => {
+      api.getDetectionStatus().then((data) => {
+        if (active) setDetectionStatus(data);
+      }).catch(() => {});
+    };
+    poll();
+    const id = setInterval(poll, 10_000);
     return () => { active = false; clearInterval(id); };
   }, [api]);
 
@@ -360,6 +374,7 @@ export default function DashboardPage() {
             dogs={dogs}
             positions={positions}
             telemetry={telemetry}
+            detectionStatus={detectionStatus}
             geofences={geofences}
             dogZones={dogZones}
             onFocusDog={handleFocusDog}
