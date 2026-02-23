@@ -143,6 +143,7 @@ export default function DogList({
       {settingsDog && (
         <DogSettingsModal
           dog={settingsDog}
+          geofences={geofences}
           onClose={() => setSettingsDogId(null)}
           onDogUpdated={onDogUpdated}
           onDogDeleted={onDogDeleted}
