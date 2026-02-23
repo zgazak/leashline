@@ -91,7 +91,7 @@ def _build_payload(alert: Alert) -> str:
     body = alert.message or f"{alert.type.value} for device {alert.device_id}"
 
     if alert.type.value == "escape_detected":
-        title = "Escape Detected!"
+        title = "Escape Alert"
     elif alert.type.value == "geofence_breach":
         title = "Geofence Breach"
     elif alert.type.value == "return_detected":

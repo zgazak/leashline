@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useApi } from "@/lib/api-provider";
-import type { DogProfile } from "@/lib/types";
+import type { DogProfile, Geofence } from "@/lib/types";
 
 interface DogSettingsModalProps {
   dog: DogProfile;
+  geofences: Geofence[];
   onClose: () => void;
   onDogUpdated: (dog: DogProfile) => void;
   onDogDeleted: (id: string) => void;
@@ -13,6 +14,7 @@ interface DogSettingsModalProps {
 
 export default function DogSettingsModal({
   dog,
+  geofences,
   onClose,
   onDogUpdated,
   onDogDeleted,
@@ -24,8 +26,33 @@ export default function DogSettingsModal({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [assignedGfIds, setAssignedGfIds] = useState<Set<string>>(
+    new Set(dog.geofence_ids),
+  );
+  const [savingGf, setSavingGf] = useState(false);
 
   const dirty = name !== dog.name || notes !== (dog.notes || "");
+
+  const toggleGeofence = async (gfId: string) => {
+    const next = new Set(assignedGfIds);
+    if (next.has(gfId)) {
+      next.delete(gfId);
+    } else {
+      next.add(gfId);
+    }
+    setAssignedGfIds(next);
+    setSavingGf(true);
+    try {
+      const updated = await api.updateDog(dog.id, {
+        geofence_ids: Array.from(next),
+      });
+      onDogUpdated(updated);
+    } catch {
+      setAssignedGfIds(assignedGfIds);
+    } finally {
+      setSavingGf(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) return;
@@ -97,6 +124,29 @@ export default function DogSettingsModal({
               rows={2}
               className="w-full border border-gray-300 rounded px-2 py-1 text-sm resize-none"
             />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Geofences</label>
+            {geofences.length === 0 ? (
+              <p className="text-xs text-gray-400">No geofences created yet</p>
+            ) : (
+              <ul className="space-y-1">
+                {geofences.map((gf) => (
+                  <li key={gf.id}>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
+                      <input
+                        type="checkbox"
+                        checked={assignedGfIds.has(gf.id)}
+                        onChange={() => toggleGeofence(gf.id)}
+                        disabled={savingGf}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-gray-700 truncate">{gf.name}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
 

@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { CacheVersionManager } from "@/components/pwa/cache-version-manager";
-import { PWAProvider } from "@/components/pwa/pwa-provider";
-import { VersionCheck } from "@/components/pwa/version-check";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://leashline.io"),
@@ -20,6 +17,19 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
   },
+  alternates: {
+    canonical: "/",
+  },
+  keywords: [
+    "dog GPS tracker",
+    "dog escape detection",
+    "LoRa dog tracker",
+    "no subscription dog tracker",
+    "dog tracker without cell service",
+    "Meshtastic dog tracker",
+    "geofence dog tracker",
+    "dog tracking no monthly fee",
+  ],
 };
 
 export default function RootLayout({
@@ -35,12 +45,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#2563eb" />
       </head>
       <body>
-        <CacheVersionManager>
-          <PWAProvider>
-            <VersionCheck />
-            {children}
-          </PWAProvider>
-        </CacheVersionManager>
+        {children}
       </body>
     </html>
   );

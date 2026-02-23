@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useApi } from "@/lib/api-provider";
-import type { Coordinate, DogProfile, Geofence, NoiseProfile, Pack } from "@/lib/types";
+import type { Coordinate, DetectionStatus, DogProfile, Geofence, NoiseProfile, Pack } from "@/lib/types";
 import { pointInPolygon } from "@/lib/geo";
 import { useAlerts } from "@/hooks/useAlerts";
 import { useConnection } from "@/hooks/useConnection";
+import { useHistoryPlayback } from "@/hooks/useHistoryPlayback";
 import { usePositions } from "@/hooks/usePositions";
 import { usePositionTrails } from "@/hooks/usePositionTrails";
 import { useTelemetry } from "@/hooks/useTelemetry";
@@ -15,8 +16,8 @@ import AlertChips from "@/components/AlertChips";
 import BottomSheet, { type TabId } from "@/components/BottomSheet";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 import CreateGeofenceModal from "@/components/CreateGeofenceModal";
-import DogList from "@/components/DogList";
 import GeofenceList from "@/components/GeofenceList";
+import HistoryTab from "@/components/HistoryTab";
 import LiveTab from "@/components/LiveTab";
 import PackSetup from "@/components/PackSetup";
 import PackSettings from "@/components/PackSettings";
@@ -37,6 +38,7 @@ export default function DashboardPage() {
   const [needsPack, setNeedsPack] = useState(false);
   const [ready, setReady] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("live");
+  const [historyMode, setHistoryMode] = useState(false);
 
   // Geofence drawing state
   const [drawingMode, setDrawingMode] = useState(false);
@@ -52,7 +54,9 @@ export default function DashboardPage() {
   const telemetry = useTelemetry(api);
   const alerts = useAlerts(api);
   const connectionState = useConnection(api);
+  const historyPlayback = useHistoryPlayback();
   const [noiseProfiles, setNoiseProfiles] = useState<Record<string, NoiseProfile>>({});
+  const [detectionStatus, setDetectionStatus] = useState<Record<string, DetectionStatus>>({});
   const { snapPoint, setSnapPoint, sheetRef, handleProps, getHeight } =
     useBottomSheet("collapsed");
 
@@ -88,6 +92,19 @@ export default function DashboardPage() {
     };
     poll();
     const id = setInterval(poll, 30_000);
+    return () => { active = false; clearInterval(id); };
+  }, [api]);
+
+  // Poll detection status every 10s
+  useEffect(() => {
+    let active = true;
+    const poll = () => {
+      api.getDetectionStatus().then((data) => {
+        if (active) setDetectionStatus(data);
+      }).catch(() => {});
+    };
+    poll();
+    const id = setInterval(poll, 10_000);
     return () => { active = false; clearInterval(id); };
   }, [api]);
 
@@ -138,6 +155,7 @@ export default function DashboardPage() {
 
   // Auto-detect escape alerts → enter tracking mode + collapse sheet
   useEffect(() => {
+    if (historyMode) return; // Don't auto-detect during history playback
     const escape = alerts.find(
       (a) => a.level === "escape" && !a.acknowledged && !dismissedEscapeIds.current.has(a.id),
     );
@@ -146,7 +164,7 @@ export default function DashboardPage() {
       setIsEscapeTracking(true);
       setSnapPoint("collapsed");
     }
-  }, [alerts, focusDogId, setSnapPoint]);
+  }, [alerts, focusDogId, setSnapPoint, historyMode]);
 
   const handleMapInteraction = useCallback(() => {
     setSnapPoint("collapsed");
@@ -197,6 +215,36 @@ export default function DashboardPage() {
     },
     [api],
   );
+
+  // History mode handlers
+  const handleLoadHistory = useCallback(
+    async (date: string) => {
+      try {
+        const data = await api.getPositionHistory(date);
+        historyPlayback.load(data);
+      } catch {
+        historyPlayback.load([]);
+      }
+    },
+    [api, historyPlayback],
+  );
+
+  const handleTabChange = useCallback(
+    (tab: TabId) => {
+      setActiveTab(tab);
+      if (tab === "history") {
+        setHistoryMode(true);
+      } else if (historyMode) {
+        setHistoryMode(false);
+        historyPlayback.reset();
+      }
+    },
+    [historyMode, historyPlayback],
+  );
+
+  // Choose which positions/trails to show on the map
+  const mapPositions = historyMode ? historyPlayback.currentPositions : positions;
+  const mapTrails = historyMode ? historyPlayback.currentTrails : trails;
 
   // Geofence drawing callbacks
   const handleStartDraw = useCallback(() => {
@@ -256,13 +304,14 @@ export default function DashboardPage() {
       {/* Full-screen map */}
       <div className="absolute inset-0">
         <Map
-          positions={positions}
-          trails={trails}
-          noiseProfiles={noiseProfiles}
-          telemetry={telemetry}
+          positions={mapPositions}
+          trails={mapTrails}
+          noiseProfiles={historyMode ? {} : noiseProfiles}
+          telemetry={historyMode ? {} : telemetry}
           geofences={geofences}
           focusDogId={focusDogId}
           dogNames={dogNames}
+          historyMode={historyMode}
           drawingMode={drawingMode}
           editingGeofenceId={editingGeofenceId}
           onPolygonComplete={handlePolygonComplete}
@@ -310,7 +359,7 @@ export default function DashboardPage() {
       )}
 
       {/* Alert chips above bottom sheet */}
-      <AlertChips alerts={alerts} bottomOffset={sheetHeight} />
+      {!historyMode && <AlertChips alerts={alerts} bottomOffset={sheetHeight} />}
 
       {/* Bottom sheet */}
       <BottomSheet
@@ -318,28 +367,32 @@ export default function DashboardPage() {
         handleProps={handleProps}
         snapPoint={snapPoint}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
       >
         {activeTab === "live" && (
           <LiveTab
             dogs={dogs}
             positions={positions}
             telemetry={telemetry}
-            dogZones={dogZones}
-            onFocusDog={handleFocusDog}
-          />
-        )}
-        {activeTab === "dogs" && (
-          <DogList
-            dogs={dogs}
-            positions={positions}
-            telemetry={telemetry}
+            detectionStatus={detectionStatus}
             geofences={geofences}
             dogZones={dogZones}
             onFocusDog={handleFocusDog}
             onDogAdded={handleDogAdded}
             onDogDeleted={handleDogDeleted}
             onDogUpdated={handleDogUpdated}
+          />
+        )}
+        {activeTab === "history" && (
+          <HistoryTab
+            state={historyPlayback.state}
+            currentIndex={historyPlayback.currentIndex}
+            totalFrames={historyPlayback.totalFrames}
+            currentTime={historyPlayback.currentTime}
+            onLoad={handleLoadHistory}
+            onPlay={historyPlayback.play}
+            onPause={historyPlayback.pause}
+            onSeek={historyPlayback.seek}
           />
         )}
         {activeTab === "zones" && (

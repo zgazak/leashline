@@ -6,6 +6,7 @@ import ComparisonTable from "@/components/marketing/ComparisonTable";
 import FeatureHighlight from "@/components/marketing/FeatureHighlight";
 import FAQAccordion from "@/components/marketing/FAQAccordion";
 import CTABanner from "@/components/marketing/CTABanner";
+import { JsonLd, faqJsonLd } from "@/lib/structured-data";
 
 const fi = competitors.find((c) => c.slug === "fi")!;
 
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
     description:
       "Fi needs cell towers and a $99/year subscription. Leashline uses LoRa radio — miles of range, zero dead zones, zero monthly fees.",
   },
+  alternates: { canonical: "/compare/vs-fi" },
 };
 
 const faqItems = [
@@ -46,6 +48,7 @@ const faqItems = [
 export default function VsFiPage() {
   return (
     <>
+      <JsonLd data={faqJsonLd(faqItems)} />
       <section className="bg-gradient-to-b from-blue-50 to-white py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <Breadcrumbs

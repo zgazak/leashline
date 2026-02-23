@@ -4,6 +4,7 @@ import { competitors, leashline } from "@/lib/competitors";
 import Breadcrumbs from "@/components/marketing/Breadcrumbs";
 import FAQAccordion from "@/components/marketing/FAQAccordion";
 import CTABanner from "@/components/marketing/CTABanner";
+import { JsonLd, faqJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "Dog GPS Tracker Without Cell Service",
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
     description:
       "LoRa radio tracking for dogs. Works in rural areas, forests, and mountains where cellular trackers fail. 1–5+ miles of range, zero dead zones.",
   },
+  alternates: { canonical: "/dog-tracker-without-cell-service" },
 };
 
 const faqItems = [
@@ -47,6 +49,7 @@ const faqItems = [
 export default function NoCellServicePage() {
   return (
     <>
+      <JsonLd data={faqJsonLd(faqItems)} />
       <section className="bg-gradient-to-b from-blue-50 to-white py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <Breadcrumbs

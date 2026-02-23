@@ -344,6 +344,24 @@ class DynamoStorage:
         self._table = table_name
         self._endpoint_url = endpoint_url
 
+    async def list_positions_for_date(
+        self, pack_id: str, start: str, end: str
+    ) -> list:
+        """Return all positions for a pack between start and end ISO timestamps.
+
+        Fetches all POSITION items for the pack, then filters/sorts in Python.
+        Adequate for single-household scale; future optimization: add GSI with timestamp sort key.
+        """
+        from engine.models.position import TrackPoint
+
+        all_positions = await self.positions.list_for_pack(pack_id)
+        filtered = [
+            tp for tp in all_positions
+            if start <= tp.received_at.isoformat() < end
+        ]
+        filtered.sort(key=lambda tp: tp.received_at)
+        return filtered
+
     async def find_pack_by_device_id(self, device_id: str) -> str | None:
         """Look up which pack owns a device by scanning dog profiles across all packs."""
         from engine.models.dog import DogProfile

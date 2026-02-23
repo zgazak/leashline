@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useApi } from "@/lib/api-provider";
-import type { DeviceTelemetry, DogProfile, NoiseProfile, TrackPoint } from "@/lib/types";
+import type { DetectionStatus, DeviceTelemetry, DogProfile, NoiseProfile, TrackPoint } from "@/lib/types";
+import { assessFixQuality } from "@/lib/gps-quality";
 
 interface DogInfoModalProps {
   dog: DogProfile;
   position: TrackPoint | undefined;
   telemetry: DeviceTelemetry | undefined;
   zoneName: string | undefined;
+  detectionStatus: DetectionStatus | undefined;
   onClose: () => void;
 }
 
@@ -83,6 +85,7 @@ export default function DogInfoModal({
   position,
   telemetry,
   zoneName,
+  detectionStatus,
   onClose,
 }: DogInfoModalProps) {
   const api = useApi();
@@ -113,6 +116,31 @@ export default function DogInfoModal({
         {zoneName && (
           <p className="text-sm text-green-600 mb-3">at {zoneName}</p>
         )}
+
+        {/* GPS quality summary banner */}
+        {(() => {
+          if (!position) {
+            return (
+              <div className="rounded-md px-3 py-2 mb-3 bg-gray-50 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-gray-400 shrink-0" />
+                <span className="text-sm text-gray-500">No GPS data</span>
+              </div>
+            );
+          }
+          const qi = assessFixQuality(position);
+          const bgMap = { good: "bg-green-50", fair: "bg-yellow-50", poor: "bg-orange-50", unknown: "bg-gray-50" } as const;
+          return (
+            <div className={`rounded-md px-3 py-2 mb-3 ${bgMap[qi.quality]}`}>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${qi.dotColor}`} />
+                <span className={`text-sm font-medium ${qi.textColor}`}>{qi.label} &middot; {qi.detail}</span>
+              </div>
+              {qi.quality === "poor" && (
+                <p className="text-xs text-orange-500 mt-0.5 ml-4">Position may be inaccurate</p>
+              )}
+            </div>
+          );
+        })()}
 
         <div className="space-y-4">
           {/* GPS Signal */}
@@ -178,6 +206,51 @@ export default function DogInfoModal({
                 <Row label="Noise radius">{noiseProfile.noise_radius_m.toFixed(1)}m</Row>
                 <Row label="Samples">{noiseProfile.sample_count}</Row>
               </>
+            )}
+          </Section>
+
+          {/* Detection diagnostics */}
+          <Section title="Detection">
+            {detectionStatus ? (
+              <>
+                {/* Active filtering indicator */}
+                {(() => {
+                  if (!detectionStatus.last_filtered_at || !position) return null;
+                  const filteredAge = Date.now() - new Date(detectionStatus.last_filtered_at).getTime();
+                  const posAge = Date.now() - new Date(position.received_at).getTime();
+                  if (filteredAge < 60_000 && filteredAge < posAge) {
+                    return (
+                      <div className="rounded-md px-3 py-1.5 mb-2 bg-yellow-50 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />
+                        <span className="text-xs text-yellow-700">Collar live, filtering poor positions</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                <Row label="Fixes filtered">
+                  {detectionStatus.altitude_rejected + detectionStatus.jump_rejected} of{" "}
+                  {detectionStatus.fixes_evaluated + detectionStatus.altitude_rejected + detectionStatus.jump_rejected}
+                  <span className="text-gray-400 text-xs ml-1">
+                    (alt: {detectionStatus.altitude_rejected}, jump: {detectionStatus.jump_rejected})
+                  </span>
+                </Row>
+                <Row label="Breach window">
+                  {detectionStatus.breach_count}/{detectionStatus.breach_window.length} outside
+                  <span className="text-gray-400 text-xs ml-1">
+                    ({detectionStatus.breach_needed} needed)
+                  </span>
+                </Row>
+                <Row label="Noise suppression">
+                  {detectionStatus.noise_suppressed ? (
+                    <span className="text-yellow-500">Active</span>
+                  ) : (
+                    <span className="text-gray-400">&mdash;</span>
+                  )}
+                </Row>
+              </>
+            ) : (
+              <p className="text-sm text-gray-400">Waiting for data</p>
             )}
           </Section>
 

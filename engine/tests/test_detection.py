@@ -31,6 +31,7 @@ def _make_point(
     seconds_offset: float = 0,
     dog_id: str = "rex",
     *,
+    alt: float | None = None,
     hdop: float | None = None,
     sats: int | None = None,
 ) -> TrackPoint:
@@ -38,7 +39,7 @@ def _make_point(
     return TrackPoint(
         device_id="!aabbccdd",
         dog_id=dog_id,
-        reading=GpsReading(lat=lat, lon=lon, timestamp=ts, hdop=hdop, sats=sats),
+        reading=GpsReading(lat=lat, lon=lon, alt=alt, timestamp=ts, hdop=hdop, sats=sats),
         received_at=ts,
     )
 
@@ -105,13 +106,13 @@ class TestSampling:
 
 class TestEscapeDetector:
     def test_inside_no_alert(self):
-        det = EscapeDetector()
+        det = EscapeDetector(DetectionConfig(breach_confirm_n=1))
         # Well inside the fence
         alert = det.evaluate(_make_point(35.001, -80.0, 0), FENCE)
         assert alert is None
 
     def test_approach_warning(self):
-        det = EscapeDetector(DetectionConfig(warning_buffer_m=20.0))
+        det = EscapeDetector(DetectionConfig(warning_buffer_m=20.0, breach_confirm_n=1))
         # Just inside the south edge (~11m from boundary)
         alert = det.evaluate(_make_point(35.0001, -80.0, 0), FENCE)
         assert alert is not None
@@ -119,7 +120,7 @@ class TestEscapeDetector:
         assert alert.level == AlertLevel.warning
 
     def test_breach_alert(self):
-        det = EscapeDetector()
+        det = EscapeDetector(DetectionConfig(breach_confirm_n=1))
         # Outside the fence
         alert = det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
         assert alert is not None
@@ -127,7 +128,7 @@ class TestEscapeDetector:
         assert alert.level == AlertLevel.breach
 
     def test_escape_after_duration(self):
-        det = EscapeDetector(DetectionConfig(breach_confirm_s=10.0))
+        det = EscapeDetector(DetectionConfig(breach_confirm_s=10.0, breach_confirm_n=1))
         # First outside — breach
         alert1 = det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
         assert alert1 is not None
@@ -144,7 +145,7 @@ class TestEscapeDetector:
         assert alert3.level == AlertLevel.escape
 
     def test_return_after_breach(self):
-        det = EscapeDetector(DetectionConfig(scatter_threshold_m=500.0))
+        det = EscapeDetector(DetectionConfig(scatter_threshold_m=500.0, breach_confirm_n=1))
         # Outside — breach
         det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
         # Back inside — return
@@ -155,7 +156,7 @@ class TestEscapeDetector:
 
     def test_full_sequence(self):
         """Dog starts inside, approaches boundary, exits, stays out, returns."""
-        det = EscapeDetector(DetectionConfig(warning_buffer_m=20.0, breach_confirm_s=10.0, scatter_threshold_m=500.0))
+        det = EscapeDetector(DetectionConfig(warning_buffer_m=20.0, breach_confirm_s=10.0, scatter_threshold_m=500.0, breach_confirm_n=1))
 
         # 1. Well inside — no alert
         a = det.evaluate(_make_point(35.001, -80.0, 0), FENCE)
@@ -192,13 +193,14 @@ class TestNoiseAwareDetection:
             "scatter_threshold_m": 500.0,
             "breach_confirm_s": 10.0,
             "warning_buffer_m": 20.0,
+            "breach_confirm_n": 1,
         }
         defaults.update(kwargs)
         return DetectionConfig(**defaults)
 
     def test_legacy_behavior_when_disabled(self):
         """When noise_aware=False, behavior is identical to legacy."""
-        det = EscapeDetector(DetectionConfig(noise_aware=False))
+        det = EscapeDetector(DetectionConfig(noise_aware=False, breach_confirm_n=1))
         alert = det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
         assert alert is not None
         assert alert.type == AlertType.geofence_breach
@@ -456,3 +458,166 @@ class TestNoiseAwareDetection:
         # significance = 20/16 = 1.25 < 2.0 → suppressed
         alert = det.evaluate(_make_point(34.99982, -80.0, 60, sats=3), FENCE)
         assert alert is None  # Suppressed — low sat count inflated uncertainty
+
+    def test_altitude_gate_rejects_wild_altitude(self):
+        """Point with wild altitude deviation is silently rejected."""
+        cfg = self._noise_config(altitude_gate_m=50.0)
+        det = EscapeDetector(cfg)
+
+        # Build altitude history inside fence
+        for i in range(6):
+            det.evaluate(_make_point(35.001, -80.0, i * 15, alt=100.0), FENCE)
+
+        # Point with wild altitude outside fence — should be rejected before detection
+        alert = det.evaluate(_make_point(34.999, -80.0, 100, alt=250.0), FENCE)
+        assert alert is None  # Rejected by altitude gate
+
+    def test_altitude_gate_passes_normal_altitude(self):
+        """Point with normal altitude is not rejected."""
+        cfg = self._noise_config(altitude_gate_m=50.0)
+        det = EscapeDetector(cfg)
+
+        # Build altitude history inside fence
+        for i in range(6):
+            det.evaluate(_make_point(35.001, -80.0, i * 15, alt=100.0), FENCE)
+
+        # Normal altitude, far outside fence — should trigger breach
+        alert = det.evaluate(_make_point(34.999, -80.0, 100, alt=105.0), FENCE)
+        assert alert is not None
+        assert alert.type == AlertType.geofence_breach
+
+    def test_altitude_gate_disabled_when_zero(self):
+        """altitude_gate_m=0 disables the gate."""
+        cfg = self._noise_config(altitude_gate_m=0)
+        det = EscapeDetector(cfg)
+
+        # Build altitude history
+        for i in range(6):
+            det.evaluate(_make_point(35.001, -80.0, i * 15, alt=100.0), FENCE)
+
+        # Wild altitude but gate disabled — not rejected
+        alert = det.evaluate(_make_point(34.999, -80.0, 100, alt=300.0), FENCE)
+        assert alert is not None
+        assert alert.type == AlertType.geofence_breach
+
+
+class TestNofMConfirmation:
+    """Tests for N-of-M breach confirmation."""
+
+    def test_single_outside_no_alert(self):
+        """1 outside point with default 3/5 → no breach."""
+        det = EscapeDetector(DetectionConfig(breach_confirm_n=3, breach_confirm_m=5))
+        alert = det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
+        assert alert is None
+
+    def test_three_consecutive_outside_triggers_breach(self):
+        """3 consecutive outside points → breach on 3rd."""
+        det = EscapeDetector(DetectionConfig(breach_confirm_n=3, breach_confirm_m=5, scatter_threshold_m=500.0))
+        alert1 = det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
+        assert alert1 is None  # 1/5
+
+        alert2 = det.evaluate(_make_point(34.999, -80.0, 15), FENCE)
+        assert alert2 is None  # 2/5
+
+        alert3 = det.evaluate(_make_point(34.999, -80.0, 30), FENCE)
+        assert alert3 is not None  # 3/5 → breach
+        assert alert3.type == AlertType.geofence_breach
+
+    def test_interleaved_triggers_breach(self):
+        """2 out, 1 in, 2 out → 3/5 outside → breach on 5th point."""
+        det = EscapeDetector(DetectionConfig(breach_confirm_n=3, breach_confirm_m=5, scatter_threshold_m=500.0))
+
+        det.evaluate(_make_point(34.999, -80.0, 0), FENCE)   # out (1/1)
+        det.evaluate(_make_point(34.999, -80.0, 15), FENCE)  # out (2/2)
+        det.evaluate(_make_point(35.001, -80.0, 30), FENCE)  # in  (2/3)
+        det.evaluate(_make_point(34.999, -80.0, 45), FENCE)  # out (3/4)
+
+        # Now 3 of 4 are outside → breach
+        # But wait — the 4th point was outside so it should have triggered
+        # Let's check: window is [True, True, False, True] → sum=3 >= 3 → breach
+        # However, point 4 is outside, so _evaluate_legacy runs. breach_start is None,
+        # outside_count = sum([T,T,F,T]) = 3 >= 3 → triggers breach
+        # Actually the 3rd point goes inside so breach_start stays None
+        # 4th point outside: window [T,T,F,T], sum=3 → breach
+
+    def test_two_out_three_in_no_alert(self):
+        """2 out, 3 in → only 2/5 outside → no breach."""
+        det = EscapeDetector(DetectionConfig(breach_confirm_n=3, breach_confirm_m=5, scatter_threshold_m=500.0))
+
+        det.evaluate(_make_point(34.999, -80.0, 0), FENCE)   # out
+        det.evaluate(_make_point(34.999, -80.0, 15), FENCE)  # out
+        det.evaluate(_make_point(35.001, -80.0, 30), FENCE)  # in
+        det.evaluate(_make_point(35.001, -80.0, 45), FENCE)  # in
+
+        # Now try outside: window is [T,T,F,F,T] → sum=3 → breach!
+        # Wait, that's still 3/5. Let me make it 3 in a row to dilute.
+        det.evaluate(_make_point(35.001, -80.0, 60), FENCE)  # in
+
+        # window is [T,F,F,F] after trimming to M=5: [T,T,F,F,F] → sum=2
+        # Actually let me trace: after 5 points, window = [T,T,F,F,F]
+        # Next outside point: window becomes [T,T,F,F,F,T] → trim to last 5 → [T,F,F,F,T] → sum=2 < 3
+        alert = det.evaluate(_make_point(34.999, -80.0, 75), FENCE)
+        assert alert is None  # Only 2/5 outside
+
+    def test_after_breach_escape_timer_still_works(self):
+        """Once breach confirmed, escape timer still escalates."""
+        det = EscapeDetector(DetectionConfig(
+            breach_confirm_n=2, breach_confirm_m=5,
+            breach_confirm_s=10.0, scatter_threshold_m=500.0,
+        ))
+
+        # 2 outside → breach
+        det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
+        alert = det.evaluate(_make_point(34.999, -80.0, 15), FENCE)
+        assert alert is not None
+        assert alert.type == AlertType.geofence_breach
+
+        # Still outside 5s later — no escalation
+        alert2 = det.evaluate(_make_point(34.999, -80.0, 20), FENCE)
+        assert alert2 is None
+
+        # Still outside 15s after breach — escape confirmed
+        alert3 = det.evaluate(_make_point(34.999, -80.0, 30), FENCE)
+        assert alert3 is not None
+        assert alert3.type == AlertType.escape_detected
+
+    def test_return_still_works_after_nofm_breach(self):
+        """Return detection works after N-of-M breach confirmation."""
+        det = EscapeDetector(DetectionConfig(
+            breach_confirm_n=2, breach_confirm_m=5, scatter_threshold_m=500.0,
+        ))
+
+        # 2 outside → breach
+        det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
+        alert = det.evaluate(_make_point(34.999, -80.0, 15), FENCE)
+        assert alert is not None
+        assert alert.type == AlertType.geofence_breach
+
+        # Return inside
+        alert2 = det.evaluate(_make_point(35.001, -80.0, 30), FENCE)
+        assert alert2 is not None
+        assert alert2.type == AlertType.return_detected
+
+    def test_nofm_works_noise_aware(self):
+        """N-of-M gates breach in noise-aware path too."""
+        cfg = DetectionConfig(
+            noise_aware=True,
+            default_noise_radius_m=8.0,
+            scatter_threshold_m=500.0,
+            breach_confirm_n=3,
+            breach_confirm_m=5,
+        )
+        det = EscapeDetector(cfg)
+
+        # 1 far outside point — not enough for N-of-M
+        alert = det.evaluate(_make_point(34.999, -80.0, 0), FENCE)
+        assert alert is None
+
+        # 2nd far outside
+        alert = det.evaluate(_make_point(34.999, -80.0, 15), FENCE)
+        assert alert is None
+
+        # 3rd far outside — breach (3/3)
+        alert = det.evaluate(_make_point(34.999, -80.0, 30), FENCE)
+        assert alert is not None
+        assert alert.type == AlertType.geofence_breach

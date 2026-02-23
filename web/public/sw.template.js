@@ -52,7 +52,7 @@ self.addEventListener("push", (event) => {
     badge: "/icon-192.png",
     tag: data.alertId || "leashline-alert",
     renotify: true,
-    data: { url: "/" },
+    data: { url: "/dashboard" },
   };
 
   event.waitUntil(
@@ -63,7 +63,7 @@ self.addEventListener("push", (event) => {
 // Notification click
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/";
+  const url = event.notification.data?.url || "/dashboard";
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
@@ -104,10 +104,16 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Network-first for HTML navigations, cache fallback for offline
+  // Use redirect: "manual" so server-side redirects (e.g., auth → /dashboard)
+  // pass through to the browser instead of being followed inside the SW.
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { redirect: "manual" })
         .then((response) => {
+          // Pass redirect responses through to browser so URL updates
+          if (response.type === "opaqueredirect") {
+            return response;
+          }
           const clone = response.clone();
           caches
             .open(DYNAMIC_CACHE)

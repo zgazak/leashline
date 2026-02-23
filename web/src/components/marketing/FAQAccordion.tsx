@@ -1,7 +1,5 @@
 "use client";
 
-import { JsonLd, faqJsonLd } from "@/lib/structured-data";
-
 interface FAQItem {
   question: string;
   answer: string;
@@ -10,7 +8,6 @@ interface FAQItem {
 export default function FAQAccordion({ items }: { items: FAQItem[] }) {
   return (
     <div>
-      <JsonLd data={faqJsonLd(items)} />
       <div className="divide-y divide-gray-200">
         {items.map((item) => (
           <details key={item.question} className="group py-4">

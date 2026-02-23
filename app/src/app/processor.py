@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from engine.detection.escape import DetectionConfig, EscapeDetector
+from engine.models.position import TrackPoint
 
 if TYPE_CHECKING:
     from app.core.events import EventBus
@@ -20,6 +21,12 @@ logger = logging.getLogger(__name__)
 # This is a global discovery list — not pack-scoped — so any user can
 # discover and claim an unassigned collar heard via MQTT.
 _recent_devices: dict[str, dict] = {}
+
+# Module-level reference to the active detector (set by run_detection_processor)
+_detector: EscapeDetector | None = None
+
+# Latest good (non-filtered) position per device — keyed by device_id
+_latest_good_positions: dict[str, TrackPoint] = {}
 
 # How long to keep a device in the "nearby" list (seconds)
 _DEVICE_TTL_S = 600
@@ -42,13 +49,25 @@ def get_nearby_devices() -> list[dict]:
     return result
 
 
+def get_detector() -> EscapeDetector | None:
+    """Return the active escape detector (for diagnostics endpoints)."""
+    return _detector
+
+
+def get_latest_good_positions() -> dict[str, TrackPoint]:
+    """Return the latest non-filtered position per device."""
+    return _latest_good_positions
+
+
 async def run_detection_processor(
     event_bus: EventBus,
     storage: SqliteStorage,
     detection_config: DetectionConfig | None = None,
 ) -> None:
     """Read positions from the event bus, run escape detection, store results, publish alerts."""
+    global _detector
     detector = EscapeDetector(detection_config)
+    _detector = detector
     queue = event_bus.subscribe("positions")
     _restored_profiles: set[str] = set()
 
@@ -94,11 +113,11 @@ async def run_detection_processor(
             dog = next((d for d in dogs if d.device_id == track_point.device_id), None)
 
             if dog is None:
+                # No detection context — always treat as good position
+                _latest_good_positions[track_point.device_id] = track_point
                 continue
 
             # Enrich track point with dog_id
-            from engine.models.position import TrackPoint
-
             enriched = TrackPoint(**{**track_point.model_dump(), "dog_id": dog.id})
 
             # Restore noise profile on first encounter (if noise-aware)
@@ -129,11 +148,20 @@ async def run_detection_processor(
                     await event_bus.publish("alerts", {"pack_id": pack_id, "data": alert})
                     logger.info("Alert: %s", alert.message)
 
+            # Update latest good position if the point was not filtered
+            if not detector.was_last_point_filtered(dog.id):
+                _latest_good_positions[track_point.device_id] = enriched
+
             # Persist updated noise profile (if noise-aware)
             if detection_config and detection_config.noise_aware:
                 profile = detector.get_noise_profile(dog.id)
                 if profile:
                     await storage.noise_profiles.put(profile.device_id, profile, pack_id)
+
+            # Publish detection status snapshot for diagnostics UI
+            status = detector.get_detection_status(dog.id)
+            if status:
+                await event_bus.publish("detection_status", {"pack_id": pack_id, "data": status})
     except asyncio.CancelledError:
         logger.info("Detection processor stopped")
         event_bus.unsubscribe("positions", queue)

@@ -1,6 +1,8 @@
 """Position query endpoints."""
 
-from fastapi import APIRouter, Depends
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.auth.deps import get_current_user, get_pack_id
 from app.auth.models import UserInfo
@@ -16,6 +18,7 @@ async def latest_positions(
 ) -> dict[str, TrackPoint]:
     """Return the latest position for each known device."""
     from app.main import get_storage
+    from app.processor import get_latest_good_positions
 
     storage = get_storage()
     all_positions = await storage.positions.list_for_pack(pack_id)
@@ -23,7 +26,33 @@ async def latest_positions(
     for tp in all_positions:
         if tp.device_id not in latest or tp.received_at > latest[tp.device_id].received_at:
             latest[tp.device_id] = tp
+
+    # Overlay with last-known-good positions from the processor.
+    # This ensures filtered (rejected) points don't move the map marker.
+    good = get_latest_good_positions()
+    for device_id, tp in good.items():
+        latest[device_id] = tp
+
     return latest
+
+
+@router.get("/history")
+async def position_history_by_date(
+    date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    user: UserInfo = Depends(get_current_user),
+    pack_id: str = Depends(get_pack_id),
+) -> list[TrackPoint]:
+    """Return all positions for a given date, sorted by received_at."""
+    try:
+        day = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+    from app.main import get_storage
+
+    storage = get_storage()
+    start = day.isoformat()
+    end_str = (day + timedelta(days=1)).isoformat()
+    return await storage.list_positions_for_date(pack_id, start, end_str)
 
 
 @router.get("/{device_id}")

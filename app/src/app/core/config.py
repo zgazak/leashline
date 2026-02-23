@@ -27,7 +27,7 @@ class MqttConfig(BaseModel):
 
 class DetectionSettings(BaseModel):
     warning_buffer_m: float = 20.0
-    breach_confirm_s: float = 10.0
+    breach_confirm_s: float = 90.0
     scatter_threshold_m: float = 50.0
     max_history: int = 20
     noise_aware: bool = False

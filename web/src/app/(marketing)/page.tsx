@@ -3,7 +3,7 @@ import Link from "next/link";
 import AuthHeroCTA from "@/components/AuthHeroCTA";
 import FeatureHighlight from "@/components/marketing/FeatureHighlight";
 import FAQAccordion from "@/components/marketing/FAQAccordion";
-import { JsonLd, softwareAppJsonLd } from "@/lib/structured-data";
+import { JsonLd, softwareAppJsonLd, faqJsonLd, productJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "Leashline | Dog Escape Detection — No Cell, No Subscription",
@@ -15,6 +15,7 @@ export const metadata: Metadata = {
       "LoRa radio dog tracking with smart geofencing. No cell service, no subscriptions. Instant escape alerts.",
     type: "website",
   },
+  alternates: { canonical: "/" },
 };
 
 const faqItems = [
@@ -31,7 +32,7 @@ const faqItems = [
   {
     question: "Is there really no monthly fee?",
     answer:
-      "Really. Cellular trackers charge subscriptions because each device needs a SIM card and data plan. Leashline uses LoRa radio — no SIM, no carrier, no fee. The software is free, the hardware is a one-time purchase.",
+      "Really. Cellular trackers charge subscriptions because each device needs a SIM card and data plan. Leashline uses LoRa radio — no SIM, no carrier, no fee. The software is free and open source, the hardware is a one-time purchase.",
   },
   {
     question: "How far does the tracking range go?",
@@ -49,6 +50,8 @@ export default function LandingPage() {
   return (
     <>
       <JsonLd data={softwareAppJsonLd()} />
+      <JsonLd data={productJsonLd()} />
+      <JsonLd data={faqJsonLd(faqItems)} />
 
       {/* Hero */}
       <section className="bg-gradient-to-b from-blue-50 to-white py-20 sm:py-28">
@@ -155,53 +158,35 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Comparison snapshot */}
+      {/* Open source + beta */}
       <section className="py-16">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-10">
-            Leashline vs cellular trackers
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">
+            Open source. Built in the open.
           </h2>
-          <div className="rounded-xl border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">&nbsp;</th>
-                  <th className="py-3 px-4 text-center font-semibold text-blue-900 bg-blue-50">Leashline</th>
-                  <th className="py-3 px-4 text-center font-medium text-gray-700">Typical Cellular</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-gray-100">
-                  <td className="py-3 px-4 font-medium text-gray-700">Monthly fee</td>
-                  <td className="py-3 px-4 text-center bg-blue-50 font-semibold text-green-600">$0</td>
-                  <td className="py-3 px-4 text-center text-gray-600">$5–13/mo</td>
-                </tr>
-                <tr className="border-b border-gray-100">
-                  <td className="py-3 px-4 font-medium text-gray-700">Hardware cost</td>
-                  <td className="py-3 px-4 text-center bg-blue-50 font-medium">~$50–80</td>
-                  <td className="py-3 px-4 text-center text-gray-600">$50–599</td>
-                </tr>
-                <tr className="border-b border-gray-100">
-                  <td className="py-3 px-4 font-medium text-gray-700">Cell service required</td>
-                  <td className="py-3 px-4 text-center bg-blue-50 font-semibold text-green-600">No</td>
-                  <td className="py-3 px-4 text-center text-red-500">Yes</td>
-                </tr>
-                <tr className="border-b border-gray-100">
-                  <td className="py-3 px-4 font-medium text-gray-700">Rural coverage</td>
-                  <td className="py-3 px-4 text-center bg-blue-50 font-semibold text-green-600">1–5+ mi</td>
-                  <td className="py-3 px-4 text-center text-gray-600">Dead zones</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-4 font-medium text-gray-700">Geofencing</td>
-                  <td className="py-3 px-4 text-center bg-blue-50 font-medium">Custom polygon</td>
-                  <td className="py-3 px-4 text-center text-gray-600">Circular only</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-6 text-center">
-            <Link href="/compare" className="text-sm text-blue-600 hover:text-blue-800 transition-colors">
-              See full comparison →
+          <p className="text-gray-600 mb-6">
+            Leashline is fully open source — the software, the detection algorithms, everything. No black boxes, no vendor lock-in. Built on the open Meshtastic ecosystem with off-the-shelf LoRa hardware.
+          </p>
+          <p className="text-gray-600 mb-8">
+            We&apos;re in <span className="font-semibold text-gray-900">early beta</span> and actively looking for dog owners, tinkerers, and contributors who want to help build something better than the subscription-based status quo.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a
+              href="https://github.com/zgazak/leashline"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+              </svg>
+              View on GitHub
+            </a>
+            <Link
+              href="/compare"
+              className="inline-flex items-center justify-center px-6 py-3 text-base font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              Compare to other trackers
             </Link>
           </div>
         </div>
@@ -243,9 +228,9 @@ export default function LandingPage() {
             />
             <FeatureHighlight
               icon="🔓"
-              title="Open Hardware"
-              description="Built on Meshtastic. Use any compatible LoRa device — no vendor lock-in."
-              href="/how-it-works"
+              title="100% Open Source"
+              description="Software and algorithms are open source on GitHub. Built on the open Meshtastic ecosystem."
+              href="https://github.com/zgazak/leashline"
             />
           </div>
         </div>
@@ -265,17 +250,30 @@ export default function LandingPage() {
       <section className="py-20 bg-gradient-to-b from-white to-blue-50">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold text-gray-900">
-            Join the early access beta
+            We&apos;re building this in the open
           </h2>
           <p className="mt-4 text-gray-600">
-            Free software — bring your own LoRa hardware. No subscriptions, no credit card.
+            Leashline is in early beta. We&apos;re looking for dog owners, Meshtastic tinkerers, and anyone tired of subscription trackers to join the ride. Free and open source — no credit card, no catch.
           </p>
-          <Link
-            href="/sign-up"
-            className="mt-8 inline-flex items-center justify-center px-6 py-3 text-base font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Get Early Access
-          </Link>
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              href="/sign-up"
+              className="inline-flex items-center justify-center px-6 py-3 text-base font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Join the Beta
+            </Link>
+            <a
+              href="https://github.com/zgazak/leashline"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+              </svg>
+              Star on GitHub
+            </a>
+          </div>
         </div>
       </section>
     </>

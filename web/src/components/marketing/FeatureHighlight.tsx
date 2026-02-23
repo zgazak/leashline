@@ -17,6 +17,10 @@ export default function FeatureHighlight({ icon, title, description, href }: Pro
   );
 
   if (href) {
+    const isExternal = href.startsWith("http");
+    if (isExternal) {
+      return <a href={href} target="_blank" rel="noopener noreferrer" className="block">{content}</a>;
+    }
     return <Link href={href} className="block">{content}</Link>;
   }
   return content;

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { competitors, leashline, totalCost } from "@/lib/competitors";
 import Breadcrumbs from "@/components/marketing/Breadcrumbs";
 import FAQAccordion from "@/components/marketing/FAQAccordion";
 import CTABanner from "@/components/marketing/CTABanner";
+import { JsonLd, faqJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "No Subscription Dog GPS Tracker",
@@ -14,6 +14,7 @@ export const metadata: Metadata = {
     description:
       "Stop paying monthly fees for dog tracking. Leashline uses LoRa radio — no cell plan, no SIM card, no subscription. Ever.",
   },
+  alternates: { canonical: "/no-subscription-dog-tracker" },
 };
 
 const faqItems = [
@@ -44,21 +45,10 @@ const faqItems = [
   },
 ];
 
-function CostRow({ name, y1, y2, y3, highlight }: { name: string; y1: string; y2: string; y3: string; highlight?: boolean }) {
-  const cls = highlight ? "bg-blue-50 font-medium" : "";
-  return (
-    <tr className="border-b border-gray-100">
-      <td className={`py-3 px-3 font-medium text-gray-900 ${cls}`}>{name}</td>
-      <td className={`py-3 px-3 text-center ${cls}`}>{y1}</td>
-      <td className={`py-3 px-3 text-center ${cls}`}>{y2}</td>
-      <td className={`py-3 px-3 text-center ${cls}`}>{y3}</td>
-    </tr>
-  );
-}
-
 export default function NoSubscriptionPage() {
   return (
     <>
+      <JsonLd data={faqJsonLd(faqItems)} />
       <section className="bg-gradient-to-b from-blue-50 to-white py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <Breadcrumbs
@@ -82,42 +72,9 @@ export default function NoSubscriptionPage() {
           <p className="text-gray-600 mb-6">
             Dog tracker subscriptions look small — $5, $8, $13 a month. But they never stop. Over the life of a dog, you&apos;ll pay hundreds or thousands in recurring fees for the privilege of using hardware you already bought.
           </p>
-
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full text-sm border-collapse min-w-[500px]">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="py-3 px-3 text-left font-medium text-gray-500">Tracker</th>
-                  <th className="py-3 px-3 text-center font-medium text-gray-500">1 Year</th>
-                  <th className="py-3 px-3 text-center font-medium text-gray-500">2 Years</th>
-                  <th className="py-3 px-3 text-center font-medium text-gray-500">3 Years</th>
-                </tr>
-              </thead>
-              <tbody>
-                <CostRow
-                  name="Leashline"
-                  y1={`$${totalCost(leashline, 1)?.total ?? "50–80"}`}
-                  y2={`$${totalCost(leashline, 2)?.total ?? "50–80"}`}
-                  y3={`$${totalCost(leashline, 3)?.total ?? "50–80"}`}
-                  highlight
-                />
-                {competitors.map((c) => {
-                  const c1 = totalCost(c, 1);
-                  const c2 = totalCost(c, 2);
-                  const c3 = totalCost(c, 3);
-                  return (
-                    <CostRow
-                      key={c.slug}
-                      name={c.name}
-                      y1={c1 ? `$${c1.total}` : "—"}
-                      y2={c2 ? `$${c2.total}` : "—"}
-                      y3={c3 ? `$${c3.total}` : "—"}
-                    />
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <p className="text-gray-600">
+            Leashline takes a different approach: the software is <span className="font-semibold text-gray-900">free and open source</span>, and the hardware is a one-time purchase of off-the-shelf LoRa devices (~$50–80 total). No SIM card, no data plan, no middleman.
+          </p>
         </div>
       </section>
 

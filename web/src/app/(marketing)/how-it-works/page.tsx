@@ -3,6 +3,7 @@ import Breadcrumbs from "@/components/marketing/Breadcrumbs";
 import FeatureHighlight from "@/components/marketing/FeatureHighlight";
 import FAQAccordion from "@/components/marketing/FAQAccordion";
 import CTABanner from "@/components/marketing/CTABanner";
+import { JsonLd, faqJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "How It Works",
@@ -13,6 +14,7 @@ export const metadata: Metadata = {
     description:
       "GPS collar broadcasts over LoRa radio to a base station hub, which sends alerts to your phone. Miles of range, no cellular required.",
   },
+  alternates: { canonical: "/how-it-works" },
 };
 
 const faqItems = [
@@ -46,6 +48,7 @@ const faqItems = [
 export default function HowItWorksPage() {
   return (
     <>
+      <JsonLd data={faqJsonLd(faqItems)} />
       <section className="bg-gradient-to-b from-blue-50 to-white py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <Breadcrumbs items={[{ name: "Home", href: "/" }, { name: "How It Works", href: "/how-it-works" }]} />

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import statistics
 from datetime import datetime
 
 from engine.geo.distance import haversine
@@ -89,6 +90,29 @@ def fix_uncertainty_factor(
         factor = max(factor, min_sats / reading.sats)
 
     return min(factor, max_factor)
+
+
+def is_altitude_anomaly(
+    recent_points: list[TrackPoint],
+    current: TrackPoint,
+    max_deviation_m: float = 50.0,
+    min_history: int = 5,
+) -> bool:
+    """Return True if the current point's altitude deviates too far from the running median.
+
+    Uses median altitude from recent_points (filtering to those with alt != None).
+    Returns False if current.alt is None or insufficient altitude history — no
+    penalty for missing data.
+    """
+    if current.reading.alt is None:
+        return False
+
+    alt_values = [p.reading.alt for p in recent_points if p.reading.alt is not None]
+    if len(alt_values) < min_history:
+        return False
+
+    median_alt = statistics.median(alt_values)
+    return abs(current.reading.alt - median_alt) > max_deviation_m
 
 
 def is_anomalous_jump(
