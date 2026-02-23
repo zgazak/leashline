@@ -62,6 +62,8 @@ export default function DashboardPage() {
 
   // Track which escape alerts the user has dismissed (so auto-detection doesn't re-trigger)
   const dismissedEscapeIds = useRef<Set<string>>(new Set());
+  // Skip auto-detection for escape alerts that exist on initial load
+  const seenInitialAlerts = useRef(false);
 
   // Track bottom sheet height for alert chips positioning
   const [sheetHeight, setSheetHeight] = useState(0);
@@ -154,8 +156,19 @@ export default function DashboardPage() {
   }, [dogs, positions, geofences]);
 
   // Auto-detect escape alerts → enter tracking mode + collapse sheet
+  // Only triggers for NEW alerts, not ones that existed when the app loaded
   useEffect(() => {
-    if (historyMode) return; // Don't auto-detect during history playback
+    if (historyMode) return;
+    if (!seenInitialAlerts.current) {
+      // First time alerts arrive: seed dismissed set so we don't auto-track stale escapes
+      seenInitialAlerts.current = true;
+      for (const a of alerts) {
+        if (a.level === "escape" && !a.acknowledged) {
+          dismissedEscapeIds.current.add(a.id);
+        }
+      }
+      return;
+    }
     const escape = alerts.find(
       (a) => a.level === "escape" && !a.acknowledged && !dismissedEscapeIds.current.has(a.id),
     );

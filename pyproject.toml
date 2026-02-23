@@ -29,7 +29,7 @@ requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = []
+packages = ["leashline"]
 
 [project.urls]
 Homepage = "https://github.com/zgazak/leashline"

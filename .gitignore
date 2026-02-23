@@ -220,6 +220,7 @@ junit-*.xml
 # SST
 .sst/
 sst-env.d.ts
+sst.pyi
 
 # Secrets
 secrets/*.yaml

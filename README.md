@@ -35,7 +35,14 @@ Leashline is a **dog escape detection system** using LoRa/Meshtastic radio track
 
 Multi-user support via Clerk auth and "packs" (households) — each pack gets its own MQTT topic namespace, so multiple families can use the same deployment.
 
-**Status:** early alpha.
+**Status:** early alpha. Read about our [GPS noise detection approach on Medium](https://medium.com/@zgazak/turning-noisy-gps-into-reliable-dog-escape-alerts-c93df8be7848).
+
+<p align="center">
+  <video src="docs/images/leashline-demo.mp4" width="300" autoplay loop muted playsinline>
+    Your browser does not support the video tag.
+  </video>
+</p>
+<p align="center"><em>Live tracking, geofence alerts, and escape detection in the Leashline PWA.</em></p>
 
 ## How It Works
 
@@ -155,6 +162,17 @@ The engine is intentionally pure — no I/O, no database, no network. It takes p
 | **BLE hub** (mobile) | Portable for walks/chasing | RAK WisMesh Pocket (~$40) or any Meshtastic node | LoRa + BLE → phone → MQTT |
 | **Outdoor antenna** | Improves range | Any 915 MHz omni + SMA coax (~$60–100) | — |
 
+<p align="center">
+  <img src="docs/images/spec5-trace-closed.jpg" alt="Spec5 Trace GPS collar — closed" width="240" />
+  &nbsp;&nbsp;
+  <img src="docs/images/spec5-trace-open.jpg" alt="Spec5 Trace GPS collar — open, showing RAK board and GPS module" width="240" />
+  &nbsp;&nbsp;
+  <img src="docs/images/heltec-base-station.jpg" alt="Heltec WiFi LoRa 32 V4 base station" width="240" />
+  &nbsp;&nbsp;
+  <img src="docs/images/rak-ble-hub.jpg" alt="RAK WisMesh Pocket BLE hub" width="240" />
+</p>
+<p align="center"><em>Left to right: Spec5 Trace collar (closed &amp; open), Heltec V4 WiFi base station, RAK WisMesh Pocket BLE hub. Penny for scale.</em></p>
+
 All LoRa devices must be on the same Meshtastic frequency (US915 for North America).
 
 ### Dog collar setup (Spec5 Trace or similar)
@@ -210,6 +228,12 @@ By default, all Meshtastic devices on the same frequency share the default encry
 3. Other mesh nodes still relay your encrypted packets (extending range) but can't read the position data
 
 For detailed step-by-step commands, see [SETUP.md](SETUP.md#2e-configure-meshtastic-hubs).
+
+## Documentation
+
+- [GPS Noise and Escape Detection: A Deep Dive](docs/gps-detection-deep-dive.md) — how we turn noisy consumer GPS into reliable escape alerts, with data from 679 stationary fixes
+- [Production Validation: 21 Hours of Stationary GPS](docs/production-validation.md) — testing the pipeline against 2,364 real production fixes in a worst-case indoor/patio environment
+- [Blog post on Medium](https://medium.com/@zgazak/turning-noisy-gps-into-reliable-dog-escape-alerts-c93df8be7848)
 
 ## Safety
 
