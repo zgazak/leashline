@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useApi } from "@/lib/api-provider";
 import type { DetectionStatus, DeviceTelemetry, DogProfile, NoiseProfile, TrackPoint } from "@/lib/types";
-import { assessFixQuality } from "@/lib/gps-quality";
 
 interface DogInfoModalProps {
   dog: DogProfile;
@@ -117,31 +116,6 @@ export default function DogInfoModal({
           <p className="text-sm text-green-600 mb-3">at {zoneName}</p>
         )}
 
-        {/* GPS quality summary banner */}
-        {(() => {
-          if (!position) {
-            return (
-              <div className="rounded-md px-3 py-2 mb-3 bg-gray-50 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-gray-400 shrink-0" />
-                <span className="text-sm text-gray-500">No GPS data</span>
-              </div>
-            );
-          }
-          const qi = assessFixQuality(position);
-          const bgMap = { good: "bg-green-50", fair: "bg-yellow-50", poor: "bg-orange-50", unknown: "bg-gray-50" } as const;
-          return (
-            <div className={`rounded-md px-3 py-2 mb-3 ${bgMap[qi.quality]}`}>
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${qi.dotColor}`} />
-                <span className={`text-sm font-medium ${qi.textColor}`}>{qi.label} &middot; {qi.detail}</span>
-              </div>
-              {qi.quality === "poor" && (
-                <p className="text-xs text-orange-500 mt-0.5 ml-4">Position may be inaccurate</p>
-              )}
-            </div>
-          );
-        })()}
-
         <div className="space-y-4">
           {/* GPS Signal */}
           <Section title="GPS Signal">
@@ -173,16 +147,19 @@ export default function DogInfoModal({
           {/* LoRa Signal (per-fix from TrackPoint) */}
           <Section title="LoRa Signal">
             {position?.rssi != null || position?.snr != null ? (
-              <>
-                {position?.rssi != null && (() => {
-                  const q = rssiQuality(position.rssi);
-                  return <Row label="RSSI"><span className={q.color}>{position.rssi} dBm ({q.label})</span></Row>;
-                })()}
-                {position?.snr != null && (() => {
-                  const q = snrQuality(position.snr);
-                  return <Row label="SNR"><span className={q.color}>{position.snr.toFixed(1)} dB ({q.label})</span></Row>;
-                })()}
-              </>
+              <Row label="RSSI / SNR">
+                <span className="text-xs">
+                  {position?.rssi != null && (() => {
+                    const q = rssiQuality(position.rssi);
+                    return <><span className={q.color}>{position.rssi} dBm ({q.label})</span></>;
+                  })()}
+                  {position?.rssi != null && position?.snr != null && <span className="text-gray-300 mx-1">&middot;</span>}
+                  {position?.snr != null && (() => {
+                    const q = snrQuality(position.snr);
+                    return <><span className={q.color}>{position.snr.toFixed(1)} dB ({q.label})</span></>;
+                  })()}
+                </span>
+              </Row>
             ) : (
               <p className="text-sm text-gray-400">No LoRa data</p>
             )}
@@ -195,17 +172,19 @@ export default function DogInfoModal({
             ) : noiseProfile === null ? (
               <p className="text-sm text-gray-400">Waiting for stationary data</p>
             ) : (
-              <>
-                <Row label="Status">
+              <Row label="Status / Radius / Samples">
+                <span className="text-xs">
                   <span className={noiseProfile.confidence >= 0.8 ? "text-green-600" : "text-yellow-500"}>
                     {noiseProfile.confidence >= 0.8
                       ? "Mature"
                       : `Learning (${Math.round(noiseProfile.confidence * 100)}%)`}
                   </span>
-                </Row>
-                <Row label="Noise radius">{noiseProfile.noise_radius_m.toFixed(1)}m</Row>
-                <Row label="Samples">{noiseProfile.sample_count}</Row>
-              </>
+                  <span className="text-gray-300 mx-1">/</span>
+                  {noiseProfile.noise_radius_m.toFixed(1)}m
+                  <span className="text-gray-300 mx-1">/</span>
+                  {noiseProfile.sample_count}
+                </span>
+              </Row>
             )}
           </Section>
 
@@ -240,13 +219,6 @@ export default function DogInfoModal({
                   <span className="text-gray-400 text-xs ml-1">
                     ({detectionStatus.breach_needed} needed)
                   </span>
-                </Row>
-                <Row label="Noise suppression">
-                  {detectionStatus.noise_suppressed ? (
-                    <span className="text-yellow-500">Active</span>
-                  ) : (
-                    <span className="text-gray-400">&mdash;</span>
-                  )}
                 </Row>
               </>
             ) : (
