@@ -37,6 +37,13 @@ Multi-user support via Clerk auth and "packs" (households) — each pack gets it
 
 **Status:** early alpha. Read about our [GPS noise detection approach on Medium](https://medium.com/@zgazak/turning-noisy-gps-into-reliable-dog-escape-alerts-c93df8be7848).
 
+<p align="center">
+  <video src="docs/images/leashline-demo.mp4" width="300" autoplay loop muted playsinline>
+    Your browser does not support the video tag.
+  </video>
+</p>
+<p align="center"><em>Live tracking, geofence alerts, and escape detection in the Leashline PWA.</em></p>
+
 ## How It Works
 
 ```

@@ -32,6 +32,15 @@ The current setup uses off-the-shelf components — nothing custom yet.
 
 This is prototype-grade hardware. The Spec5 is bulky and wasn't designed for this duty cycle, and the Heltec is a bare dev board. But the pieces are cheap, available, and good enough to validate the approach — which is the point at this stage.
 
+### The App
+
+<p align="center">
+  <video src="images/leashline-demo.mp4" width="300" autoplay loop muted playsinline>
+    Your browser does not support the video tag.
+  </video>
+</p>
+<p align="center"><em>Live tracking, geofence alerts, and escape detection in the Leashline PWA.</em></p>
+
 What I didn't expect was that the harder problem wasn't communication latency. It was GPS noise.
 ---
 
