@@ -6,6 +6,7 @@ import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import type { Coordinate, DeviceTelemetry, Geofence, NoiseProfile, TrackPoint } from "@/lib/types";
+import { assessFixQuality, qualitySummary } from "@/lib/gps-quality";
 import { GEOFENCE_COLORS } from "@/components/GeofenceList";
 
 interface MapProps {
@@ -112,13 +113,21 @@ export default function Map({
         id: "uncertainty-fill",
         type: "fill",
         source: "uncertainty-circles",
-        paint: { "fill-color": "#3b82f6", "fill-opacity": 0.08 },
+        paint: {
+          "fill-color": ["get", "color"],
+          "fill-opacity": ["match", ["get", "quality"], "poor", 0.15, "fair", 0.10, 0.08],
+        },
       });
       map.addLayer({
         id: "uncertainty-outline",
         type: "line",
         source: "uncertainty-circles",
-        paint: { "line-color": "#3b82f6", "line-opacity": 0.3, "line-width": 1.5, "line-dasharray": [4, 3] },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-opacity": ["match", ["get", "quality"], "poor", 0.5, "fair", 0.4, 0.3],
+          "line-width": ["match", ["get", "quality"], "poor", 2.5, 1.5],
+          "line-dasharray": [4, 3],
+        },
       });
 
       // Trail lines
@@ -347,7 +356,7 @@ export default function Map({
       const batteryHtml = telem?.battery_level != null
         ? `<br/>Battery: ${telem.battery_level}%${telem.voltage != null ? ` (${telem.voltage.toFixed(1)}V)` : ""}`
         : "";
-      const popupHtml = `<strong>${name}</strong><br/>RSSI: ${tp.rssi ?? "\u2014"} / SNR: ${tp.snr ?? "\u2014"}${batteryHtml}`;
+      const popupHtml = `<strong>${name}</strong><br/>${qualitySummary(tp)}${batteryHtml}`;
 
       // Update or create marker
       if (markersRef.current[deviceId]) {
@@ -376,16 +385,14 @@ export default function Map({
       // Build uncertainty circle at the exact same position
       const profile = noiseProfiles?.[deviceId];
       const noiseRadius = profile?.noise_radius_m ?? 8;
-      const sats = tp.reading.sats ?? 4;
-      const hdop = tp.reading.hdop ?? 2;
-      const fixFactor = Math.min(5, Math.max(1, hdop / 1.5, 6 / sats));
+      const qi = assessFixQuality(tp);
       const elapsedSec = (now - new Date(tp.received_at).getTime()) / 1000;
       const timeExpansion = Math.max(0, elapsedSec) * 0.5;
-      const radius = Math.min(500, noiseRadius * fixFactor + timeExpansion);
+      const radius = Math.min(500, noiseRadius * qi.fixFactor + timeExpansion);
 
       circleFeatures.push({
         type: "Feature",
-        properties: {},
+        properties: { color: qi.circleColor, quality: qi.quality },
         geometry: geoCircle(tp.reading.lat, tp.reading.lon, radius),
       });
     }
