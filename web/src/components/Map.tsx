@@ -17,6 +17,7 @@ interface MapProps {
   geofences: Geofence[];
   focusDogId: string | null;
   dogNames: Record<string, string>;
+  historyMode?: boolean;
   drawingMode?: boolean;
   editingGeofenceId?: string | null;
   onPolygonComplete?: (vertices: Coordinate[]) => void;
@@ -54,6 +55,7 @@ export default function Map({
   geofences,
   focusDogId,
   dogNames,
+  historyMode,
   drawingMode,
   editingGeofenceId,
   onPolygonComplete,
@@ -68,6 +70,7 @@ export default function Map({
   const drawRef = useRef<MapboxDraw | null>(null);
   const editingIdRef = useRef<string | null>(null);
   const hasAutoZoomedRef = useRef(false);
+  const historyBoundsRef = useRef<{ fitted: boolean; lastCheck: number }>({ fitted: false, lastCheck: 0 });
 
   // Store callbacks in refs so draw event handlers always see latest
   const onPolygonCompleteRef = useRef(onPolygonComplete);
@@ -415,29 +418,37 @@ export default function Map({
 
     const lineFeatures: GeoJSON.Feature[] = [];
     const dotFeatures: GeoJSON.Feature[] = [];
-    const dotSizes = [6, 5, 4, 3];
-    const dotOpacities = [0.7, 0.5, 0.35, 0.25];
 
     for (const [deviceId, pts] of Object.entries(trails)) {
       if (pts.length < 2) continue;
-      // Start the line from the live position (may be fresher than trails)
-      const live = positions[deviceId];
+
       const lineCoords: [number, number][] = [];
-      if (live) lineCoords.push([live.reading.lon, live.reading.lat]);
-      for (const p of pts) lineCoords.push([p.reading.lon, p.reading.lat]);
+
+      if (historyMode) {
+        // History: trails are chronological (oldest→newest), draw full path
+        for (const p of pts) lineCoords.push([p.reading.lon, p.reading.lat]);
+      } else {
+        // Live: prepend current position, add fading trail dots
+        const live = positions[deviceId];
+        if (live) lineCoords.push([live.reading.lon, live.reading.lat]);
+        for (const p of pts) lineCoords.push([p.reading.lon, p.reading.lat]);
+
+        const dotSizes = [6, 5, 4, 3];
+        const dotOpacities = [0.7, 0.5, 0.35, 0.25];
+        for (let i = 1; i < pts.length; i++) {
+          dotFeatures.push({
+            type: "Feature",
+            properties: { radius: dotSizes[i - 1] ?? 3, opacity: dotOpacities[i - 1] ?? 0.2 },
+            geometry: { type: "Point", coordinates: [pts[i].reading.lon, pts[i].reading.lat] },
+          });
+        }
+      }
+
       lineFeatures.push({
         type: "Feature",
         properties: {},
         geometry: { type: "LineString", coordinates: lineCoords },
       });
-      // Dots for older positions (skip index 0 — that's the current marker)
-      for (let i = 1; i < pts.length; i++) {
-        dotFeatures.push({
-          type: "Feature",
-          properties: { radius: dotSizes[i - 1] ?? 3, opacity: dotOpacities[i - 1] ?? 0.2 },
-          geometry: { type: "Point", coordinates: [pts[i].reading.lon, pts[i].reading.lat] },
-        });
-      }
     }
 
     const setData = () => {
@@ -449,7 +460,7 @@ export default function Map({
 
     if (map.isStyleLoaded()) setData();
     else map.on("style.load", setData);
-  }, [trails, positions]);
+  }, [trails, positions, historyMode]);
 
   // Auto-zoom to dog positions on first data (~300m view)
   useEffect(() => {
@@ -479,6 +490,49 @@ export default function Map({
       return () => { map.off("load", doZoom); };
     }
   }, [positions]);
+
+  // Reset auto-zoom when switching between live/history modes
+  useEffect(() => {
+    hasAutoZoomedRef.current = false;
+    historyBoundsRef.current = { fitted: false, lastCheck: 0 };
+  }, [historyMode]);
+
+  // Auto-fit and expand bounds during history playback
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !historyMode || !trails) return;
+
+    const allCoords: [number, number][] = [];
+    for (const pts of Object.values(trails)) {
+      for (const p of pts) allCoords.push([p.reading.lon, p.reading.lat]);
+    }
+    if (allCoords.length < 1) return;
+
+    const bounds = new mapboxgl.LngLatBounds();
+    for (const c of allCoords) bounds.extend(c);
+
+    if (!historyBoundsRef.current.fitted) {
+      // Initial fit when history data first appears
+      historyBoundsRef.current.fitted = true;
+      historyBoundsRef.current.lastCheck = Date.now();
+      if (allCoords.length === 1) {
+        map.flyTo({ center: allCoords[0], zoom: 17, speed: 2 });
+      } else {
+        map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
+      }
+      return;
+    }
+
+    // Throttled expansion check (every 2s)
+    const now = Date.now();
+    if (now - historyBoundsRef.current.lastCheck < 2000) return;
+    historyBoundsRef.current.lastCheck = now;
+
+    const mapBounds = map.getBounds?.();
+    if (mapBounds && (!mapBounds.contains(bounds.getNorthEast()) || !mapBounds.contains(bounds.getSouthWest()))) {
+      map.fitBounds(bounds, { padding: 80, maxZoom: 17, duration: 500 });
+    }
+  }, [historyMode, trails]);
 
   // Focus on escaping dog
   useEffect(() => {

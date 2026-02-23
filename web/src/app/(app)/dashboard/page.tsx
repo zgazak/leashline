@@ -297,6 +297,7 @@ export default function DashboardPage() {
           geofences={geofences}
           focusDogId={focusDogId}
           dogNames={dogNames}
+          historyMode={historyMode}
           drawingMode={drawingMode}
           editingGeofenceId={editingGeofenceId}
           onPolygonComplete={handlePolygonComplete}

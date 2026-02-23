@@ -19,25 +19,18 @@ interface HistoryPlayback {
   reset: () => void;
 }
 
-const TRAIL_LENGTH = 50;
 const PLAYBACK_DURATION_MS = 30_000;
 const TARGET_FPS = 30;
 
 function computeState(positions: TrackPoint[], upToIndex: number) {
   const currentPositions: Record<string, TrackPoint> = {};
-  const trails: Record<string, TrackPoint[]> = {};
+  const currentTrails: Record<string, TrackPoint[]> = {};
 
   for (let i = 0; i <= upToIndex && i < positions.length; i++) {
     const tp = positions[i];
     currentPositions[tp.device_id] = tp;
-    if (!trails[tp.device_id]) trails[tp.device_id] = [];
-    trails[tp.device_id].push(tp);
-  }
-
-  // Trim trails to last N points
-  const currentTrails: Record<string, TrackPoint[]> = {};
-  for (const [deviceId, trail] of Object.entries(trails)) {
-    currentTrails[deviceId] = trail.slice(-TRAIL_LENGTH);
+    if (!currentTrails[tp.device_id]) currentTrails[tp.device_id] = [];
+    currentTrails[tp.device_id].push(tp);
   }
 
   return { currentPositions, currentTrails };
